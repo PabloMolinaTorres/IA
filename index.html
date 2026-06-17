@@ -1746,7 +1746,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.12</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.0 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2032,7 +2032,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.12";
+    const APP_VERSION = "V1.2.0 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2042,7 +2042,9 @@
 
     const IA_BACKEND_URL = "https://flujo-ia-backend.vercel.app/api/generate-image";
     const IA_OPTIONS_COUNT = 2;
-    const IA_ALLOWED_USER = "Pablo";
+    const IA_CONFIRM_PIN = "3400";
+    const IA_BATCH_CONCURRENCY = 3;
+    const IA_SYSTEM_USER = "Gemini IA";
 
 const firebaseConfig = {
       apiKey: "AIzaSyD4Uju0DEyYGgpAeTQi-xSbWd10wy7cfJc",
@@ -2055,10 +2057,14 @@ const firebaseConfig = {
 
     const STATUS = {
       PENDIENTE: "Pendiente",
+      GENERANDO_IA: "Generando IA",
+      ERROR_IA: "Error IA",
       TRABAJO: "En trabajo",
       REVISION: "En revisión",
       APROBADO: "Aprobado",
+      ACEPTADO_IA: "Aceptado IA",
       RECHAZADO: "Rechazado",
+      RECHAZADO_IA: "Rechazado IA",
       DESCARGADO: "Descargado",
       DESCARTADO: "Descartado"
     };
@@ -2220,6 +2226,11 @@ const firebaseConfig = {
       if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
       if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
       if (!Array.isArray(record.reviewEvents)) record.reviewEvents = [];
+      if (!record.iaBatchId) record.iaBatchId = "";
+      if (!record.iaError) record.iaError = "";
+      if (!record.iaStartedAt) record.iaStartedAt = "";
+      if (!record.iaFinishedAt) record.iaFinishedAt = "";
+      if (!record.iaAttemptCount && record.iaAttemptCount !== 0) record.iaAttemptCount = 0;
       if (!record.version) record.version = 1;
       if (record.rejectionCount === undefined || record.rejectionCount === null) {
         record.rejectionCount = Math.max(Number(record.version || 1) - 1, 0);
@@ -2228,7 +2239,7 @@ const firebaseConfig = {
       if (!record.estado) record.estado = STATUS.PENDIENTE;
       if (!record.lastImageNames) record.lastImageNames = "";
 
-      if (!record.editor && [STATUS.TRABAJO, STATUS.REVISION, STATUS.RECHAZADO].includes(record.estado)) {
+      if (!record.editor && [STATUS.TRABAJO, STATUS.REVISION, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) {
         const possibleSources = [
           ...record.uploadEvents,
           ...record.generatedImages
@@ -3165,10 +3176,12 @@ Instrucciones:
     function statusPill(status) {
       let cls = "status";
 
+      if (status === STATUS.GENERANDO_IA) cls = "status-revision";
+      if (status === STATUS.ERROR_IA) cls = "status-rechazado";
       if (status === STATUS.TRABAJO) cls = "status-trabajo";
       if (status === STATUS.REVISION) cls = "status-revision";
-      if (status === STATUS.APROBADO) cls = "status-aprobado";
-      if (status === STATUS.RECHAZADO) cls = "status-rechazado";
+      if (status === STATUS.APROBADO || status === STATUS.ACEPTADO_IA) cls = "status-aprobado";
+      if (status === STATUS.RECHAZADO || status === STATUS.RECHAZADO_IA) cls = "status-rechazado";
       if (status === STATUS.DESCARGADO) cls = "status-descargado";
       if (status === STATUS.DESCARTADO) cls = "status-descartado";
 
@@ -3218,6 +3231,12 @@ Instrucciones:
         generatedImageId: "",
         generatedImageName: "",
         lastImageNames: "",
+        iaGenerated: false,
+        iaBatchId: "",
+        iaError: "",
+        iaStartedAt: "",
+        iaFinishedAt: "",
+        iaAttemptCount: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         takenAt: "",
@@ -3280,6 +3299,7 @@ Instrucciones:
       await setTab("work");
       await refresh();
       toast("SKU agregado manualmente.");
+      await maybePromptAutoGenerateForNewRecords([record], "manual");
     }
 
     function downloadTemplate() {
@@ -3369,6 +3389,7 @@ Instrucciones:
         let incomplete = 0;
         let correctedPriority = 0;
         const writes = [];
+        const addedRecords = [];
 
         rows.forEach(row => {
           const sku = String(row[skuCol] || "").trim();
@@ -3396,6 +3417,7 @@ Instrucciones:
           });
 
           records.push(record);
+          addedRecords.push(record);
           writes.push(saveRecord(record));
           added++;
         });
@@ -3414,6 +3436,8 @@ Instrucciones:
           `Filas incompletas omitidas: ${incomplete}\n` +
           `Prioridades corregidas a normal: ${correctedPriority}`
         );
+
+        await maybePromptAutoGenerateForNewRecords(addedRecords, "excel");
       } catch (error) {
         console.error(error);
         alert("No se pudo leer el Excel. Revisa que sea un archivo .xlsx, .xls o .csv válido.");
@@ -3782,6 +3806,7 @@ ${image.name || "Imagen sin nombre"}`);
         let saved = 0;
         let incomplete = 0;
         const writes = [];
+        const addedRecords = [];
 
         rows.forEach(row => {
           const marca = String(row[marcaCol] || "").trim();
@@ -3927,10 +3952,14 @@ ${image.name || "Imagen sin nombre"}`);
     function renderStats() {
       const count = {
         [STATUS.PENDIENTE]: 0,
+        [STATUS.GENERANDO_IA]: 0,
+        [STATUS.ERROR_IA]: 0,
         [STATUS.TRABAJO]: 0,
         [STATUS.REVISION]: 0,
         [STATUS.APROBADO]: 0,
+        [STATUS.ACEPTADO_IA]: 0,
         [STATUS.RECHAZADO]: 0,
+        [STATUS.RECHAZADO_IA]: 0,
         [STATUS.DESCARGADO]: 0,
         [STATUS.DESCARTADO]: 0
       };
@@ -3942,9 +3971,9 @@ ${image.name || "Imagen sin nombre"}`);
       document.getElementById("stats").innerHTML = `
         <div class="stat"><small>Pendientes</small><strong>${count[STATUS.PENDIENTE]}</strong></div>
         <div class="stat"><small>En trabajo</small><strong>${count[STATUS.TRABAJO]}</strong></div>
-        <div class="stat"><small>En revisión</small><strong>${count[STATUS.REVISION]}</strong></div>
-        <div class="stat"><small>Aprobados</small><strong>${count[STATUS.APROBADO] + count[STATUS.DESCARGADO]}</strong></div>
-        <div class="stat"><small>Rechazados</small><strong>${count[STATUS.RECHAZADO]}</strong></div>
+        <div class="stat"><small>En revisión</small><strong>${count[STATUS.REVISION] + count[STATUS.GENERANDO_IA]}</strong></div>
+        <div class="stat"><small>Aprobados</small><strong>${count[STATUS.APROBADO] + count[STATUS.DESCARGADO] + count[STATUS.ACEPTADO_IA]}</strong></div>
+        <div class="stat"><small>Rechazados / Error IA</small><strong>${count[STATUS.RECHAZADO] + count[STATUS.RECHAZADO_IA] + count[STATUS.ERROR_IA]}</strong></div>
       `;
     }
 
@@ -3985,11 +4014,13 @@ ${image.name || "Imagen sin nombre"}`);
         if (role === ROLES.ADMIN) {
           return record.estado === STATUS.PENDIENTE ||
             record.estado === STATUS.RECHAZADO ||
+            record.estado === STATUS.RECHAZADO_IA ||
+            record.estado === STATUS.ERROR_IA ||
             record.estado === STATUS.TRABAJO;
         }
 
         if (role === ROLES.RETOCADOR) {
-          if (record.estado === STATUS.PENDIENTE) return true;
+          if (record.estado === STATUS.PENDIENTE || record.estado === STATUS.RECHAZADO_IA) return true;
           if ((record.estado === STATUS.RECHAZADO || record.estado === STATUS.TRABAJO) && record.editor === user) return true;
         }
 
@@ -4262,7 +4293,7 @@ Esto permitirá volver a cargarlos más adelante.
       const styleReferenceImages = getBrandStyleReferenceImages(record);
       const styleReferencesHtml = await getWorkStyleReferencesHtml(record);
       const downloadImagesLabel = styleReferenceImages.length ? "Descargar imágenes + referencias" : "Descargar imágenes";
-      const rejectedPreviewHtml = record.estado === STATUS.RECHAZADO && getRecordImages(record).length
+      const rejectedPreviewHtml = isRejectedWorkRecord(record) && getRecordImages(record).length
         ? await getRejectedImagesWorkPreviewHtml(record)
         : "";
 
@@ -4322,6 +4353,12 @@ Esto permitirá volver a cargarlos más adelante.
               <span>${escapeHtml(record.motivoRechazo)}</span>
             </div>
           ` : ""}
+          ${record.iaError ? `
+            <div class="info-box" style="grid-column:1/-1;">
+              <small>Error IA</small>
+              <span>${escapeHtml(record.iaError)}</span>
+            </div>
+          ` : ""}
         </div>
 
         <div class="detail-preview">
@@ -4342,9 +4379,9 @@ Esto permitirá volver a cargarlos más adelante.
         <div class="prompt-box">${escapeHtml(currentPrompt)}</div>
 
         <div class="actions">
-          ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
+          ${canTakeWorkRecord(record) ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${workTakeButtonLabel(record)}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">${downloadImagesLabel}</button>
-          ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
+          ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">${record.estado === STATUS.ERROR_IA ? "Reintentar IA" : "Generar por IA (2 opciones)"}</button>` : ""}
           <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
           ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Eliminar de SKU a trabajar</button>` : ""}
         </div>
@@ -4435,7 +4472,7 @@ Esto permitirá volver a cargarlos más adelante.
     }
 
     function canAdminRemoveFromWork(record) {
-      return isAdmin() && record && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO].includes(record.estado);
+      return isAdmin() && record && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.RECHAZADO_IA, STATUS.ERROR_IA, STATUS.GENERANDO_IA].includes(record.estado);
     }
 
     async function adminRemoveSkuFromWork(id) {
@@ -4510,9 +4547,8 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       }
 
       record.estado = STATUS.TRABAJO;
-      record.editor = record.editor || currentUser();
-      if (!isAdmin() || !record.editor) record.editor = currentUser();
-      record.takenAt = record.takenAt || new Date().toISOString();
+      record.editor = currentUser();
+      record.takenAt = new Date().toISOString();
       record.updatedAt = new Date().toISOString();
 
       await saveRecord(record);
@@ -4525,7 +4561,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const user = currentUser();
 
       return sortByPriority(records).filter(record => {
-        const uploadableStatus = record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO;
+        const uploadableStatus = record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO || record.estado === STATUS.RECHAZADO_IA;
         if (!uploadableStatus) return false;
         if (isAdmin()) return true;
         return record.editor === user;
@@ -4788,7 +4824,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
             const base = fileNameWithoutExtension(file.name);
             const possibleRecord = records.find(record => fileNameMatchesSku(file.name, record.sku));
 
-            if (possibleRecord && ![STATUS.TRABAJO, STATUS.RECHAZADO].includes(possibleRecord.estado)) {
+            if (possibleRecord && ![STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(possibleRecord.estado)) {
               errors.status.push(`${file.name} · el SKU está en estado "${possibleRecord.estado}" y no puede recibir imágenes`);
             } else if (possibleRecord && !isAdmin() && possibleRecord.editor !== currentUser()) {
               errors.ownership.push(`${file.name} · asignado a ${possibleRecord.editor || "otro usuario"}`);
@@ -4804,7 +4840,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         });
 
         for (const group of groups.values()) {
-          if (group.record.estado === STATUS.RECHAZADO && getRecordImages(group.record).length) {
+          if (recordHasRejectedImages(group.record) && getRecordImages(group.record).length) {
             // Al reenviar una corrección, las imágenes rechazadas anteriores se reemplazan por la nueva entrega.
             await deleteImagesFromStorage(group.record);
             group.record.generatedImages = [];
@@ -5268,7 +5304,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       } else {
         record.takenAt = "";
 
-        if (record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO) {
+        if (record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO || record.estado === STATUS.RECHAZADO_IA) {
           record.estado = STATUS.PENDIENTE;
         }
 
@@ -5324,6 +5360,8 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         record.uploadedAt,
         record.reviewedAt,
         record.downloadedAt,
+        record.iaStartedAt,
+        record.iaFinishedAt,
         record.removedAt
       ];
 
@@ -5530,9 +5568,9 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       if (Array.isArray(record.reviewEvents) && record.reviewEvents.length) return record.reviewEvents;
 
       const status = record.estado;
-      if (![STATUS.DESCARGADO, STATUS.RECHAZADO].includes(status)) return [];
+      if (![STATUS.DESCARGADO, STATUS.ACEPTADO_IA, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(status)) return [];
 
-      const result = status === STATUS.DESCARGADO ? "approved" : "rejected";
+      const result = (status === STATUS.DESCARGADO || status === STATUS.ACEPTADO_IA) ? "approved" : "rejected";
       const baseDate = record.reviewedAt || record.downloadedAt || record.updatedAt || record.uploadedAt || record.createdAt;
       const count = Math.max(1, (record.lastImageNames || "").split(",").map(x => x.trim()).filter(Boolean).length);
 
@@ -5655,7 +5693,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           });
         });
 
-        if (!uploadEvents.length && [STATUS.REVISION, STATUS.DESCARGADO, STATUS.RECHAZADO].includes(record.estado)) {
+        if (!uploadEvents.length && [STATUS.REVISION, STATUS.DESCARGADO, STATUS.ACEPTADO_IA, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) {
           const date = parseMetricDate(record.uploadedAt || record.reviewedAt || record.updatedAt || record.createdAt);
           if (!date) return;
 
@@ -6169,7 +6207,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.10" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.2.0 IA" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
@@ -6412,14 +6450,17 @@ Después podrás volver a cargar este SKU desde Excel o manual.
             }
           }
 
-          record.estado = STATUS.DESCARGADO;
+          const approvedByIa = isAiGeneratedRecord(record);
+          record.estado = approvedByIa ? STATUS.ACEPTADO_IA : STATUS.DESCARGADO;
           record.revisor = currentUser();
           record.motivoRechazo = "";
+          record.iaApproved = Boolean(approvedByIa);
+          record.iaFinishedAt = approvedByIa ? now : (record.iaFinishedAt || "");
           record.reviewedAt = now;
           record.updatedAt = now;
           record.downloadedAt = now;
           record.lastImageNames = [
-            approvedNames ? `Aprobadas: ${approvedNames}` : "",
+            approvedNames ? `${approvedByIa ? "Aceptado IA" : "Aprobadas"}: ${approvedNames}` : "",
             discardedNames ? `Descartadas: ${discardedNames}` : ""
           ].filter(Boolean).join(" | ");
           record.generatedImageId = "";
@@ -6459,21 +6500,28 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           const imageNames = images.map(img => img.name).join(", ");
           createReviewEvents(record, "rejected", images);
 
-          record.estado = STATUS.RECHAZADO;
+          const rejectedByIa = isAiGeneratedRecord(record);
+          record.estado = rejectedByIa ? STATUS.RECHAZADO_IA : STATUS.RECHAZADO;
           record.revisor = currentUser();
-          record.motivoRechazo = reasonById[id];
+          record.motivoRechazo = rejectedByIa ? `Rechazo IA automática: ${reasonById[id]}` : reasonById[id];
+          record.iaRejected = Boolean(rejectedByIa);
+          if (rejectedByIa) {
+            record.editor = "";
+            record.takenAt = "";
+          }
           record.version = Number(record.version || 1) + 1;
           record.rejectionCount = getRejectionCount(record) + 1;
           record.lastImageNames = imageNames;
           record.generatedImages = images.map(image => ({
             ...image,
             reviewStatus: "rejected",
-            rejectionReason: reasonById[id],
+            rejectionReason: record.motivoRechazo,
             rejectedAt: now,
             rejectedBy: currentUser()
           }));
           record.generatedImageId = "";
           record.generatedImageName = record.generatedImages.map(img => img.name).join(", ");
+          record.iaFinishedAt = rejectedByIa ? now : (record.iaFinishedAt || "");
           record.reviewedAt = now;
           record.updatedAt = now;
 
@@ -6481,7 +6529,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         }
 
         await refresh();
-        toast(`${ids.length} SKU(s) rechazados. Las imágenes vuelven a SKU a trabajar.`);
+        toast(`${ids.length} SKU(s) rechazados. Los Rechazado IA quedan libres para trabajo manual.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo rechazar. Revisa permisos de Firestore o conexión.");
@@ -6541,7 +6589,7 @@ ${image.name || "Imagen sin nombre"}`);
       record.generatedImageName = remainingImages.map(img => img.name).join(", ");
       record.lastImageNames = record.generatedImageName || record.lastImageNames || "";
 
-      if (!remainingImages.length && [STATUS.REVISION, STATUS.RECHAZADO].includes(record.estado)) {
+      if (!remainingImages.length && [STATUS.REVISION, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) {
         record.estado = record.editor ? STATUS.TRABAJO : STATUS.PENDIENTE;
         record.motivoRechazo = "";
         record.revisor = "";
@@ -6775,11 +6823,290 @@ ${image.name || "Imagen sin nombre"}`);
 
 
 
-    function canGenerateAiForRecord(record) {
+    function isAiGeneratedRecord(record) {
       if (!record) return false;
-      if (currentUser() !== IA_ALLOWED_USER) return false;
-      if (record.estado !== STATUS.TRABAJO) return false;
-      if ((record.editor || "") !== IA_ALLOWED_USER) return false;
+      if (record.iaGenerated || record.iaApproved || record.iaRejected) return true;
+      return getRecordImages(record).some(image => image.generatedByAi || image.source === "gemini");
+    }
+
+    function isRejectedWorkRecord(record) {
+      return record && (record.estado === STATUS.RECHAZADO || record.estado === STATUS.RECHAZADO_IA);
+    }
+
+    function recordHasRejectedImages(record) {
+      return isRejectedWorkRecord(record) || getRecordImages(record).some(image => isImageRejected(image));
+    }
+
+    function canTakeWorkRecord(record) {
+      if (!record || record.estado === STATUS.TRABAJO || record.estado === STATUS.GENERANDO_IA || record.estado === STATUS.ERROR_IA) return false;
+      return record.estado === STATUS.PENDIENTE || record.estado === STATUS.RECHAZADO || record.estado === STATUS.RECHAZADO_IA;
+    }
+
+    function workTakeButtonLabel(record) {
+      if (!record) return "Tomar SKU";
+      if (record.estado === STATUS.RECHAZADO_IA) return "Tomar manual";
+      if (record.estado === STATUS.RECHAZADO) return "Retomar rechazo";
+      return "Tomar SKU";
+    }
+
+    function aiGenerationCandidateRecords(inputRecords) {
+      return (inputRecords || [])
+        .map(item => typeof item === "string" ? getRecord(item) : item)
+        .filter(Boolean)
+        .filter(record => canGenerateAiForRecord(record));
+    }
+
+    async function maybePromptAutoGenerateForNewRecords(inputRecords, source = "") {
+      if (!isAdmin()) return;
+
+      const candidates = aiGenerationCandidateRecords(inputRecords);
+      if (!candidates.length) return;
+
+      if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
+        alert("Los SKUs quedaron cargados, pero falta configurar IA_BACKEND_URL con la URL real de Vercel.");
+        return;
+      }
+
+      const totalSkus = candidates.length;
+      const totalImages = totalSkus * IA_OPTIONS_COUNT;
+      const confirmed = confirm(
+        `Se agregaron ${totalSkus} SKU(s) nuevo(s).\n\n` +
+        `Se generarán automáticamente ${IA_OPTIONS_COUNT} opciones por SKU.\n` +
+        `Total imágenes IA: ${totalImages}.\n\n` +
+        `Proceso por lotes de ${IA_BATCH_CONCURRENCY} SKU(s).\n\n` +
+        "¿Enviar ahora a Gemini?"
+      );
+
+      if (!confirmed) return;
+
+      const iaPin = prompt("Ingresa clave IA para confirmar generación automática:");
+      if (iaPin === null) return;
+      if (iaPin.trim() !== IA_CONFIRM_PIN) {
+        alert("Clave IA incorrecta.");
+        return;
+      }
+
+      await runAiBatchGeneration(candidates.map(record => record.id), iaPin.trim(), source);
+    }
+
+    async function runWithConcurrency(items, limit, worker) {
+      const results = [];
+      let index = 0;
+
+      async function next() {
+        while (index < items.length) {
+          const currentIndex = index++;
+          results[currentIndex] = await worker(items[currentIndex], currentIndex);
+        }
+      }
+
+      const workers = Array.from({ length: Math.min(limit, items.length) }, () => next());
+      await Promise.all(workers);
+      return results;
+    }
+
+    function aiGeneratedFileName(record, optionIndex) {
+      const view = String(optionIndex + 5).padStart(3, "0");
+      return `${safeFileName(record.sku)}_${view}.png`;
+    }
+
+    async function generateAiFilesForRecord(record, iaPin) {
+      const generatedResults = [];
+
+      for (let optionNumber = 1; optionNumber <= IA_OPTIONS_COUNT; optionNumber++) {
+        const result = await callAiGeneration(record, optionNumber, iaPin);
+        generatedResults.push(result);
+      }
+
+      return generatedResults.map((item, index) => {
+        return base64ToFile(
+          item.base64,
+          aiGeneratedFileName(record, index),
+          item.mimeType || "image/png"
+        );
+      });
+    }
+
+    async function uploadAiGeneratedFilesToReview(record, files, batchId) {
+      if (!record || !files?.length) return;
+      if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+      if (getRecordImages(record).length) {
+        await deleteImagesFromStorage(record);
+        record.generatedImages = [];
+        record.generatedImageName = "";
+      }
+
+      const now = new Date().toISOString();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const imageId = `${record.id}_ia_${Date.now()}_${i}_${Math.random().toString(16).slice(2)}`;
+        const cleanName = safeFileName(file.name);
+        const path = `${STORAGE_ROOT}/${record.id}/${imageId}_${cleanName}`;
+        const ref = storageRef(storage, path);
+        const contentType = uploadContentType(file);
+
+        await uploadBytes(ref, file, { contentType });
+
+        record.generatedImages.push({
+          id: imageId,
+          name: file.name,
+          path,
+          size: file.size,
+          type: contentType,
+          matchedSku: record.sku,
+          uploadedAt: now,
+          uploadedBy: IA_SYSTEM_USER,
+          generatedByAi: true,
+          source: "gemini",
+          optionNumber: i + 1,
+          batchId
+        });
+
+        if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
+        record.uploadEvents.push({
+          id: imageId,
+          name: file.name,
+          sku: record.sku,
+          editor: IA_SYSTEM_USER,
+          uploadedBy: IA_SYSTEM_USER,
+          uploadedAt: now,
+          size: file.size,
+          generatedByAi: true,
+          source: "gemini",
+          batchId
+        });
+      }
+
+      record.estado = STATUS.REVISION;
+      record.editor = IA_SYSTEM_USER;
+      record.motivoRechazo = "";
+      record.iaGenerated = true;
+      record.iaError = "";
+      record.iaBatchId = batchId;
+      record.iaFinishedAt = now;
+      record.generatedImageName = getRecordImages(record).map(img => img.name).join(", ");
+      record.uploadedAt = now;
+      record.updatedAt = now;
+
+      await saveRecord(record);
+    }
+
+    async function generateAiForSingleRecord(recordId, iaPin, batchId, progressCallback) {
+      const record = getRecord(recordId);
+      if (!record) return { ok: false, id: recordId, sku: "", error: "SKU no encontrado" };
+
+      try {
+        if (!canGenerateAiForRecord(record)) {
+          return { ok: false, id: recordId, sku: record.sku, skipped: true, error: "No disponible para IA" };
+        }
+
+        const now = new Date().toISOString();
+        record.estado = STATUS.GENERANDO_IA;
+        record.iaStartedAt = now;
+        record.iaFinishedAt = "";
+        record.iaError = "";
+        record.iaBatchId = batchId;
+        record.iaAttemptCount = Number(record.iaAttemptCount || 0) + 1;
+        record.updatedAt = now;
+        await saveRecord(record);
+
+        if (progressCallback) progressCallback(`Generando ${record.sku}...`);
+        const files = await generateAiFilesForRecord(record, iaPin);
+        await uploadAiGeneratedFilesToReview(record, files, batchId);
+        return { ok: true, id: record.id, sku: record.sku, files: files.length };
+      } catch (error) {
+        console.error(`Error IA ${record?.sku || recordId}:`, error);
+        const failed = getRecord(recordId) || record;
+        if (failed) {
+          const now = new Date().toISOString();
+          failed.estado = STATUS.ERROR_IA;
+          failed.iaError = error?.message || "Error al generar por IA.";
+          failed.iaFinishedAt = now;
+          failed.updatedAt = now;
+          await saveRecord(failed);
+        }
+        return { ok: false, id: recordId, sku: record?.sku || "", error: error?.message || "Error IA" };
+      }
+    }
+
+    async function runAiBatchGeneration(recordIds, iaPin, source = "manual") {
+      if (!requireAdmin()) return;
+
+      const ids = [...new Set(recordIds || [])].filter(Boolean);
+      const candidates = aiGenerationCandidateRecords(ids);
+
+      if (!candidates.length) {
+        alert("No hay SKU(s) disponibles para generar por IA.");
+        return;
+      }
+
+      if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
+        alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
+        return;
+      }
+
+      if (aiGenerating || uploadProcessing || reviewProcessing) {
+        alert("Ya hay un proceso en curso. Espera a que termine.");
+        return;
+      }
+
+      aiGenerating = true;
+      const batchId = `ia_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      let completed = 0;
+      const total = candidates.length;
+
+      openAiProgressModal();
+      updateAiProgress(1, `Iniciando lote IA: ${total} SKU(s)...`);
+
+      try {
+        const results = await runWithConcurrency(
+          candidates.map(record => record.id),
+          IA_BATCH_CONCURRENCY,
+          async (id) => {
+            const result = await generateAiForSingleRecord(id, iaPin, batchId, text => {
+              const percent = Math.max(1, Math.round((completed / total) * 95));
+              updateAiProgress(percent, `${text} · ${completed}/${total} completados`);
+            });
+
+            completed++;
+            const percent = Math.min(99, Math.max(1, Math.round((completed / total) * 100)));
+            updateAiProgress(percent, `Lote IA: ${completed}/${total} SKU(s) procesados`);
+            return result;
+          }
+        );
+
+        const ok = results.filter(item => item?.ok).length;
+        const failed = results.filter(item => item && !item.ok && !item.skipped).length;
+        const skipped = results.filter(item => item?.skipped).length;
+        const totalImages = ok * IA_OPTIONS_COUNT;
+
+        updateAiProgress(100, `Listo: ${ok} OK, ${failed} error, ${skipped} omitido(s).`);
+        await refresh();
+
+        alert(
+          "Generación IA finalizada.\n\n" +
+          `SKU(s) enviados a revisión: ${ok}\n` +
+          `Imágenes generadas: ${totalImages}\n` +
+          `Errores: ${failed}\n` +
+          `Omitidos: ${skipped}\n\n` +
+          "Los errores quedan como Error IA y se pueden reintentar desde SKU a trabajar."
+        );
+
+        setTimeout(() => closeAiProgressModal(), 900);
+      } catch (error) {
+        console.error(error);
+        closeAiProgressModal();
+        alert(error.message || "No se pudo completar el lote IA.");
+      } finally {
+        aiGenerating = false;
+      }
+    }
+
+    function canGenerateAiForRecord(record) {
+      if (!record || !isAdmin()) return false;
+      if (![STATUS.PENDIENTE, STATUS.ERROR_IA].includes(record.estado)) return false;
+      if (getRecordImages(record).length) return false;
       return true;
     }
 
@@ -6976,7 +7303,7 @@ ${image.name || "Imagen sin nombre"}`);
     }
 
     async function generateAiOptions(id) {
-      if (!requireTabAccess("work")) return;
+      if (!requireAdmin()) return;
 
       const record = getRecord(id);
       if (!record) {
@@ -6985,76 +7312,25 @@ ${image.name || "Imagen sin nombre"}`);
       }
 
       if (!canGenerateAiForRecord(record)) {
-        alert("Solo Pablo puede generar por IA, y el SKU debe estar tomado por Pablo.");
+        alert("Este SKU no está disponible para generar por IA. Debe estar Pendiente o Error IA y sin imágenes activas.");
         return;
       }
 
-      if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
-        alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
-        return;
-      }
+      const confirmed = confirm(
+        `Se generarán ${IA_OPTIONS_COUNT} opciones IA para el SKU ${record.sku}.\n\n` +
+        "Si termina correctamente, pasará directo a Revisión.\n\n" +
+        "¿Continuar?"
+      );
+      if (!confirmed) return;
 
-      if (aiGenerating || uploadProcessing) {
-        alert("Ya hay un proceso en curso. Espera a que termine.");
-        return;
-      }
-
-      const existingImages = getRecordImages(record);
-      if (existingImages.length) {
-        alert("Este SKU ya tiene imágenes cargadas. Primero revisa o limpia ese estado antes de generar por IA.");
-        return;
-      }
-
-      const iaPin = prompt("Ingresa la clave IA para generar:");
+      const iaPin = prompt("Ingresa clave IA para generar:");
       if (iaPin === null) return;
-      if (!iaPin.trim()) {
-        alert("Debes ingresar la clave IA.");
+      if (iaPin.trim() !== IA_CONFIRM_PIN) {
+        alert("Clave IA incorrecta.");
         return;
       }
 
-      aiGenerating = true;
-      openAiProgressModal();
-
-      try {
-        updateAiProgress(5, "Validando SKU...");
-        const generatedResults = [];
-
-        for (let optionNumber = 1; optionNumber <= IA_OPTIONS_COUNT; optionNumber++) {
-          const startPercent = optionNumber === 1 ? 15 : 55;
-          const donePercent = optionNumber === 1 ? 50 : 80;
-
-          updateAiProgress(startPercent, `Generando opción ${optionNumber} de ${IA_OPTIONS_COUNT}...`);
-          const result = await callAiGeneration(record, optionNumber, iaPin);
-          generatedResults.push(result);
-          updateAiProgress(donePercent, `Opción ${optionNumber} lista.`);
-        }
-
-        updateAiProgress(88, "Preparando archivos...");
-        const files = generatedResults.map((item, index) => {
-          const fallbackName = `${record.sku}_${String(index + 5).padStart(3, "0")}.png`;
-          return base64ToFile(
-            item.base64,
-            item.fileName || fallbackName,
-            item.mimeType || "image/png"
-          );
-        });
-
-        updateAiProgress(93, "Subiendo a Firebase y enviando a revisión...");
-        await handleGeneratedUpload(id, files);
-
-        updateAiProgress(100, "Listo. Las 2 imágenes pasaron a revisión.");
-        toast(`Se generaron ${files.length} imágenes IA para ${record.sku}.`);
-
-        setTimeout(() => {
-          closeAiProgressModal();
-        }, 900);
-      } catch (error) {
-        console.error(error);
-        closeAiProgressModal();
-        alert(error.message || "No se pudo completar la generación IA.");
-      } finally {
-        aiGenerating = false;
-      }
+      await runAiBatchGeneration([id], iaPin.trim(), "retry/manual");
     }
 
     function openImageModal(encodedUrl, encodedTitle) {
