@@ -1746,7 +1746,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.0 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.1 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2032,7 +2032,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.0 IA";
+    const APP_VERSION = "V1.2.1 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2047,12 +2047,12 @@
     const IA_SYSTEM_USER = "Gemini IA";
 
 const firebaseConfig = {
-      apiKey: "AIzaSyD4Uju0DEyYGgpAeTQi-xSbWd10wy7cfJc",
-      authDomain: "flujo-ia.firebaseapp.com",
-      projectId: "flujo-ia",
-      storageBucket: "flujo-ia.firebasestorage.app",
-      messagingSenderId: "500202381796",
-      appId: "1:500202381796:web:20d93a25cf0e5d1e9627f1"
+      apiKey: "AIzaSyDmzE2YLMHuHNkBEnE3J7GGVA4RFUx3rpw",
+      authDomain: "flujo-ia-auto.firebaseapp.com",
+      projectId: "flujo-ia-auto",
+      storageBucket: "flujo-ia-auto.firebasestorage.app",
+      messagingSenderId: "171949468816",
+      appId: "1:171949468816:web:712d793918792d731b7c15"
     };
 
     const STATUS = {
@@ -5360,8 +5360,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         record.uploadedAt,
         record.reviewedAt,
         record.downloadedAt,
-        record.iaStartedAt,
-        record.iaFinishedAt,
         record.removedAt
       ];
 
