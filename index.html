@@ -1795,7 +1795,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.3 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.4 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1858,6 +1858,7 @@
         <button id="manualBtn" class="btn btn-soft" onclick="toggleManualPanel()" disabled>Agregar manual</button>
         <button id="loadExcelBtn" class="btn btn-primary" onclick="document.getElementById('excelInput').click()" disabled>Cargar Excel</button>
         <button id="templateBtn" class="btn btn-soft" onclick="downloadTemplate()" disabled>Descargar plantilla</button>
+        <button id="autoIaBtn" class="btn btn-primary" onclick="generateAiForPendingRecords()" disabled>Generar IA</button>
         <input id="excelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)" />
       </div>
 
@@ -2081,7 +2082,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.3 IA";
+    const APP_VERSION = "V1.2.4 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2567,7 +2568,7 @@ const firebaseConfig = {
       const adminLocked = Boolean(user) && firebaseReady && role === ROLES.ADMIN && !isAdminUnlocked(user);
       const lockMessage = document.getElementById("lockMessage");
 
-      ["loadExcelBtn", "manualBtn", "templateBtn"].forEach(id => {
+      ["loadExcelBtn", "manualBtn", "templateBtn", "autoIaBtn"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
 
@@ -2865,13 +2866,6 @@ Instrucciones:
       } catch {
         return [];
       }
-    }
-
-
-
-    function saveNotificationKeys(keys) {
-      const unique = [...new Set(keys)].slice(-600);
-      localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(unique));
     }
 
     function readAlertedNotificationKeys() {
@@ -3362,7 +3356,7 @@ Instrucciones:
       await setTab("work");
       await refresh();
       toast("SKU agregado manualmente.");
-      await maybePromptAutoGenerateForNewRecords([record], "manual");
+      renderAutoIaButton();
     }
 
     function downloadTemplate() {
@@ -3500,7 +3494,7 @@ Instrucciones:
           `Prioridades corregidas a normal: ${correctedPriority}`
         );
 
-        await maybePromptAutoGenerateForNewRecords(addedRecords, "excel");
+        renderAutoIaButton();
       } catch (error) {
         console.error(error);
         alert("No se pudo leer el Excel. Revisa que sea un archivo .xlsx, .xls o .csv válido.");
@@ -3990,6 +3984,7 @@ ${image.name || "Imagen sin nombre"}`);
     async function refresh() {
       lockByUser();
       renderStats();
+      renderAutoIaButton();
       renderNotifications();
       renderWorkList();
       await renderWorkDetail();
@@ -4002,6 +3997,7 @@ ${image.name || "Imagen sin nombre"}`);
 
     async function renderEmptyBase() {
       renderStats();
+      renderAutoIaButton();
       renderNotifications();
       renderWorkList();
       await renderWorkDetail();
@@ -6955,23 +6951,43 @@ ${image.name || "Imagen sin nombre"}`);
         .filter(record => canGenerateAiForRecord(record));
     }
 
-    async function maybePromptAutoGenerateForNewRecords(inputRecords, source = "") {
+    function getPendingAutoIaRecords() {
+      return aiGenerationCandidateRecords(records);
+    }
+
+    function renderAutoIaButton() {
+      const btn = document.getElementById("autoIaBtn");
+      if (!btn) return;
+
+      const admin = isAdmin();
+      const candidates = admin ? getPendingAutoIaRecords() : [];
+
+      btn.classList.toggle("hidden", !admin);
+      btn.disabled = !admin || !candidates.length || aiGenerating || uploadProcessing || reviewProcessing;
+      btn.textContent = candidates.length ? `Generar IA (${candidates.length})` : "Generar IA";
+    }
+
+    async function confirmAndRunAiGeneration(inputRecords, source = "") {
       if (!isAdmin()) return;
 
       const candidates = aiGenerationCandidateRecords(inputRecords);
-      if (!candidates.length) return;
+      if (!candidates.length) {
+        alert("No hay SKUs pendientes disponibles para IA.");
+        renderAutoIaButton();
+        return;
+      }
 
       if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
-        alert("Los SKUs quedaron cargados, pero falta configurar IA_BACKEND_URL con la URL real de Vercel.");
+        alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
         return;
       }
 
       const totalSkus = candidates.length;
       const totalImages = totalSkus * IA_OPTIONS_COUNT;
       const confirmed = confirm(
-        `Se agregaron ${totalSkus} SKU(s) nuevo(s).\n\n` +
         `Se generarán automáticamente ${IA_OPTIONS_COUNT} opciones por SKU.\n` +
-        `Total imágenes IA: ${totalImages}.\n\n` +
+        `SKU(s): ${totalSkus}\n` +
+        `Total imágenes IA: ${totalImages}\n\n` +
         `Proceso por lotes de ${IA_BATCH_CONCURRENCY} SKU(s).\n\n` +
         "¿Enviar ahora a Gemini?"
       );
@@ -6986,6 +7002,12 @@ ${image.name || "Imagen sin nombre"}`);
       }
 
       await runAiBatchGeneration(candidates.map(record => record.id), iaPin.trim(), source);
+      renderAutoIaButton();
+    }
+
+    async function generateAiForPendingRecords() {
+      if (!requireAdmin()) return;
+      await confirmAndRunAiGeneration(getPendingAutoIaRecords(), "boton-admin");
     }
 
     async function runWithConcurrency(items, limit, worker) {
@@ -7199,6 +7221,7 @@ ${image.name || "Imagen sin nombre"}`);
         alert(error.message || "No se pudo completar el lote IA.");
       } finally {
         aiGenerating = false;
+        renderAutoIaButton();
       }
     }
 
@@ -7492,6 +7515,7 @@ ${image.name || "Imagen sin nombre"}`);
       toggleMetricsPanel,
       setMetricsPeriod,
       downloadMetricsExcel,
+      generateAiForPendingRecords,
       toggleNotificationsPanel,
       openNotificationsPanel,
       openNotificationTarget,
