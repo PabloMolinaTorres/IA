@@ -1858,7 +1858,7 @@
         <button id="manualBtn" class="btn btn-soft" onclick="toggleManualPanel()" disabled>Agregar manual</button>
         <button id="loadExcelBtn" class="btn btn-primary" onclick="document.getElementById('excelInput').click()" disabled>Cargar Excel</button>
         <button id="templateBtn" class="btn btn-soft" onclick="downloadTemplate()" disabled>Descargar plantilla</button>
-        <button id="autoIaBtn" class="btn btn-primary" onclick="generateAiForPendingRecords()" disabled>Generar IA</button>
+        <button id="autoIaBtn" class="btn btn-primary" onclick="generateAiForPendingRecords()">Generar IA</button>
         <input id="excelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)" />
       </div>
 
@@ -7155,10 +7155,7 @@ ${image.name || "Imagen sin nombre"}`);
     }
 
     function canAutoGenerateAiForRecord(record) {
-      if (!record || !isAdmin()) return false;
-      if (![STATUS.PENDIENTE, STATUS.ERROR_IA].includes(record.estado)) return false;
-      if (getRecordImages(record).length) return false;
-      return true;
+      return canGenerateAiForRecord(record);
     }
 
     function getPendingAutoIaRecords() {
@@ -7173,8 +7170,11 @@ ${image.name || "Imagen sin nombre"}`);
       const candidates = admin ? getPendingAutoIaRecords() : [];
 
       btn.classList.toggle("hidden", !admin);
-      btn.disabled = !admin || !candidates.length || aiGenerating || uploadProcessing || reviewProcessing;
+      btn.disabled = !admin || aiGenerating || uploadProcessing || reviewProcessing;
       btn.textContent = candidates.length ? `Generar IA (${candidates.length})` : "Generar IA";
+      btn.title = candidates.length
+        ? `Generar IA para ${candidates.length} SKU(s) pendiente(s) o rechazado(s)`
+        : "Buscará todos los SKU(s) elegibles para IA al momento de ejecutarlo";
     }
 
     async function confirmAndRunAiGeneration(inputRecords, source = "") {
