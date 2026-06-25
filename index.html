@@ -471,8 +471,6 @@
     .status-rechazado { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
     .status-descargado { background: rgba(34, 197, 94, .22); color: var(--green); border-color: rgba(34, 197, 94, .36); }
     .status-descartado { background: rgba(107, 114, 128, .16); color: var(--muted); border-color: rgba(107, 114, 128, .32); }
-    .status-superior-ok { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
-    .status-superior-pendiente { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
 
     .detail-content {
       padding: 18px;
@@ -919,33 +917,6 @@
       outline: none;
     }
 
-    .master-filter-bar {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
-      background: var(--card);
-      display: grid;
-      grid-template-columns: minmax(260px, 1fr) auto auto auto auto;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .master-filter-input {
-      width: 100%;
-      border: 1px solid var(--border);
-      background: var(--card2);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 11px 12px;
-      outline: none;
-      font-weight: 700;
-    }
-
-    .btn-filter-active {
-      background: var(--greenFalabella);
-      color: white;
-      border-color: var(--greenFalabella);
-    }
-
 
     .work-bulk-bar {
       grid-template-columns: 1fr auto auto auto;
@@ -1122,21 +1093,6 @@
       font-weight: 900;
     }
 
-    .metric-card-ok {
-      border-color: rgba(34, 197, 94, .28);
-      background: rgba(34, 197, 94, .10);
-    }
-
-    .metric-card-pending {
-      border-color: rgba(250, 204, 21, .35);
-      background: rgba(250, 204, 21, .12);
-    }
-
-    .metric-card-rejected {
-      border-color: rgba(239, 68, 68, .28);
-      background: rgba(239, 68, 68, .10);
-    }
-
     .metrics-title {
       display: flex;
       justify-content: space-between;
@@ -1179,10 +1135,6 @@
       background: var(--greenFalabella);
       border-radius: 999px;
     }
-
-    .bar-fill-ok { background: var(--greenFalabella); }
-    .bar-fill-pending { background: var(--yellow); }
-    .bar-fill-rejected { background: var(--red); }
 
     .metrics-table {
       width: 100%;
@@ -1427,7 +1379,6 @@
     }
 
     .legend-approved { background: var(--greenFalabella); }
-    .legend-pending { background: var(--yellow); }
     .legend-rejected { background: var(--red); }
 
     .bar-counts {
@@ -1778,7 +1729,7 @@
       .compare-image-frame, .compare-empty { min-height: 0; }
       .stats, .metrics-grid { grid-template-columns: repeat(2, 1fr); }
       .bar-row { grid-template-columns: 90px 1fr 42px; }
-      .bulk-bar, .master-filter-bar { grid-template-columns: 1fr; }
+      .bulk-bar { grid-template-columns: 1fr; }
       .manual-grid { grid-template-columns: 1fr; }
       .manual-grid .wide { grid-column: span 1; }
       .info-grid { grid-template-columns: 1fr; }
@@ -1795,7 +1746,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.4 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.3 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1858,7 +1809,6 @@
         <button id="manualBtn" class="btn btn-soft" onclick="toggleManualPanel()" disabled>Agregar manual</button>
         <button id="loadExcelBtn" class="btn btn-primary" onclick="document.getElementById('excelInput').click()" disabled>Cargar Excel</button>
         <button id="templateBtn" class="btn btn-soft" onclick="downloadTemplate()" disabled>Descargar plantilla</button>
-        <button id="autoIaBtn" class="btn btn-primary" onclick="generateAiForPendingRecords()" disabled>Generar IA</button>
         <input id="excelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)" />
       </div>
 
@@ -2082,7 +2032,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.4 IA";
+    const APP_VERSION = "V1.2.3 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2186,8 +2136,6 @@ const firebaseConfig = {
     let aiGenerating = false;
     let metricsPeriod = "week";
     let masterSort = { field: "prioridad", direction: "asc" };
-    let masterSearchQuery = "";
-    let masterSuperiorFilter = "all";
     const selectedWorkBulkIds = new Set();
     const pos1Cache = {};
 
@@ -2276,6 +2224,7 @@ const firebaseConfig = {
 
     function migrateRecord(record) {
       if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+      if (!Array.isArray(record.archivedImages)) record.archivedImages = [];
       if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
       if (!Array.isArray(record.reviewEvents)) record.reviewEvents = [];
       if (!record.iaBatchId) record.iaBatchId = "";
@@ -2568,7 +2517,7 @@ const firebaseConfig = {
       const adminLocked = Boolean(user) && firebaseReady && role === ROLES.ADMIN && !isAdminUnlocked(user);
       const lockMessage = document.getElementById("lockMessage");
 
-      ["loadExcelBtn", "manualBtn", "templateBtn", "autoIaBtn"].forEach(id => {
+      ["loadExcelBtn", "manualBtn", "templateBtn"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
 
@@ -3023,7 +2972,7 @@ Instrucciones:
 
       records.forEach(record => {
         if (role === ROLES.RETOCADOR && record.editor === user) {
-          if (record.estado === STATUS.DESCARGADO || record.estado === STATUS.ACEPTADO_IA) {
+          if (record.estado === STATUS.DESCARGADO) {
             const ts = notificationTimestamp(record);
             items.push({
               key: `${record.id}|approved|${ts}`,
@@ -3034,7 +2983,7 @@ Instrucciones:
             });
           }
 
-          if (record.estado === STATUS.RECHAZADO || record.estado === STATUS.RECHAZADO_IA) {
+          if (record.estado === STATUS.RECHAZADO) {
             const ts = notificationTimestamp(record);
             items.push({
               key: `${record.id}|rejected|${ts}`,
@@ -3164,11 +3113,6 @@ Instrucciones:
 
       syncActiveTabUi();
       await refresh();
-    }
-
-    function getRecordBySku(sku) {
-      const key = normalizeText(sku);
-      return activeMasterRecords().find(record => normalizeText(record.sku) === key) || records.find(record => normalizeText(record.sku) === key) || null;
     }
 
     function getRecord(id) {
@@ -3356,7 +3300,7 @@ Instrucciones:
       await setTab("work");
       await refresh();
       toast("SKU agregado manualmente.");
-      renderAutoIaButton();
+      await maybePromptAutoGenerateForNewRecords([record], "manual");
     }
 
     function downloadTemplate() {
@@ -3494,7 +3438,7 @@ Instrucciones:
           `Prioridades corregidas a normal: ${correctedPriority}`
         );
 
-        renderAutoIaButton();
+        await maybePromptAutoGenerateForNewRecords(addedRecords, "excel");
       } catch (error) {
         console.error(error);
         alert("No se pudo leer el Excel. Revisa que sea un archivo .xlsx, .xls o .csv válido.");
@@ -3863,6 +3807,7 @@ ${image.name || "Imagen sin nombre"}`);
         let saved = 0;
         let incomplete = 0;
         const writes = [];
+        const addedRecords = [];
 
         rows.forEach(row => {
           const marca = String(row[marcaCol] || "").trim();
@@ -3984,7 +3929,6 @@ ${image.name || "Imagen sin nombre"}`);
     async function refresh() {
       lockByUser();
       renderStats();
-      renderAutoIaButton();
       renderNotifications();
       renderWorkList();
       await renderWorkDetail();
@@ -3997,7 +3941,6 @@ ${image.name || "Imagen sin nombre"}`);
 
     async function renderEmptyBase() {
       renderStats();
-      renderAutoIaButton();
       renderNotifications();
       renderWorkList();
       await renderWorkDetail();
@@ -4007,38 +3950,31 @@ ${image.name || "Imagen sin nombre"}`);
       document.getElementById("reviewList").innerHTML = `<div class="empty">No hay SKUs pendientes de revisión.</div>`;
     }
 
-    function isDiscardedRecord(record = {}) {
-      return record.estado === STATUS.DESCARTADO;
-    }
-
-    function activeMasterRecords() {
-      return records.filter(record => !isDiscardedRecord(record));
-    }
-
-    function superiorStatus(record = {}) {
-      return [STATUS.APROBADO, STATUS.DESCARGADO, STATUS.ACEPTADO_IA].includes(record.estado) ? "OK" : "Pendiente";
-    }
-
-    function superiorStatusPill(record = {}) {
-      const value = typeof record === "string" ? record : superiorStatus(record);
-      const cls = value === "OK" ? "status-superior-ok" : "status-superior-pendiente";
-      return `<span class="pill ${cls}">${escapeHtml(value)}</span>`;
-    }
-
     function renderStats() {
-      const activeRecords = activeMasterRecords();
-      const ok = activeRecords.filter(record => superiorStatus(record) === "OK").length;
-      const pending = activeRecords.filter(record => superiorStatus(record) === "Pendiente").length;
-      const rejected = activeRecords.filter(record => [STATUS.RECHAZADO, STATUS.RECHAZADO_IA, STATUS.ERROR_IA].includes(record.estado)).length;
-      const inWork = activeRecords.filter(record => record.estado === STATUS.TRABAJO).length;
-      const inReview = activeRecords.filter(record => [STATUS.REVISION, STATUS.GENERANDO_IA].includes(record.estado)).length;
+      const count = {
+        [STATUS.PENDIENTE]: 0,
+        [STATUS.GENERANDO_IA]: 0,
+        [STATUS.ERROR_IA]: 0,
+        [STATUS.TRABAJO]: 0,
+        [STATUS.REVISION]: 0,
+        [STATUS.APROBADO]: 0,
+        [STATUS.ACEPTADO_IA]: 0,
+        [STATUS.RECHAZADO]: 0,
+        [STATUS.RECHAZADO_IA]: 0,
+        [STATUS.DESCARGADO]: 0,
+        [STATUS.DESCARTADO]: 0
+      };
+
+      records.forEach(record => {
+        if (count[record.estado] !== undefined) count[record.estado]++;
+      });
 
       document.getElementById("stats").innerHTML = `
-        <div class="stat"><small>OK</small><strong>${ok}</strong></div>
-        <div class="stat"><small>Pendientes</small><strong>${pending}</strong></div>
-        <div class="stat"><small>Rechazados</small><strong>${rejected}</strong></div>
-        <div class="stat"><small>En trabajo</small><strong>${inWork}</strong></div>
-        <div class="stat"><small>En revisión</small><strong>${inReview}</strong></div>
+        <div class="stat"><small>Pendientes</small><strong>${count[STATUS.PENDIENTE]}</strong></div>
+        <div class="stat"><small>En trabajo</small><strong>${count[STATUS.TRABAJO]}</strong></div>
+        <div class="stat"><small>En revisión</small><strong>${count[STATUS.REVISION] + count[STATUS.GENERANDO_IA]}</strong></div>
+        <div class="stat"><small>Aprobados</small><strong>${count[STATUS.APROBADO] + count[STATUS.DESCARGADO] + count[STATUS.ACEPTADO_IA]}</strong></div>
+        <div class="stat"><small>Rechazados / Error IA</small><strong>${count[STATUS.RECHAZADO] + count[STATUS.RECHAZADO_IA] + count[STATUS.ERROR_IA]}</strong></div>
       `;
     }
 
@@ -4445,8 +4381,8 @@ Esto permitirá volver a cargarlos más adelante.
 
         <div class="actions">
           ${canTakeWorkRecord(record) ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${workTakeButtonLabel(record)}</button>` : ""}
+          ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">${record.estado === STATUS.ERROR_IA ? "Reintentar IA" : "Editar IA este SKU"}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">${downloadImagesLabel}</button>
-          ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">${record.estado === STATUS.ERROR_IA ? "Reintentar IA" : "Generar por IA (2 opciones)"}</button>` : ""}
           <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
           ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Eliminar de SKU a trabajar</button>` : ""}
         </div>
@@ -4612,9 +4548,8 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       }
 
       record.estado = STATUS.TRABAJO;
-      record.editor = record.editor || currentUser();
-      if (!isAdmin() || !record.editor) record.editor = currentUser();
-      record.takenAt = record.takenAt || new Date().toISOString();
+      record.editor = currentUser();
+      record.takenAt = new Date().toISOString();
       record.updatedAt = new Date().toISOString();
 
       await saveRecord(record);
@@ -4907,8 +4842,14 @@ Después podrás volver a cargar este SKU desde Excel o manual.
 
         for (const group of groups.values()) {
           if (recordHasRejectedImages(group.record) && getRecordImages(group.record).length) {
-            // Al reenviar una corrección, las imágenes rechazadas anteriores se reemplazan por la nueva entrega.
-            await deleteImagesFromStorage(group.record);
+            // Al reenviar una corrección, las imágenes rechazadas anteriores dejan de estar activas,
+            // pero quedan guardadas en Storage e historial del Master.
+            archiveImagesForRecord(group.record, getRecordImages(group.record), group.record.estado === STATUS.RECHAZADO_IA ? "rejected_ia" : "rejected", {
+              archiveReason: "Reemplazadas por nueva corrección manual",
+              reviewedBy: group.record.revisor || currentUser(),
+              reviewedAt: group.record.reviewedAt || new Date().toISOString(),
+              rejectionReason: group.record.motivoRechazo || ""
+            });
             group.record.generatedImages = [];
             group.record.generatedImageName = "";
           }
@@ -5381,78 +5322,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       await refresh();
     }
 
-    function parseMasterSearchTokens(value = masterSearchQuery) {
-      return String(value || "")
-        .split(/[,;\n]/)
-        .map(item => normalizeText(item))
-        .filter(Boolean);
-    }
-
-    function recordMatchesMasterSearch(record, tokens) {
-      if (!tokens.length) return true;
-      const sku = normalizeText(record.sku);
-      return tokens.some(token => sku === token || sku.includes(token));
-    }
-
-    function recordMatchesMasterSuperiorFilter(record) {
-      if (masterSuperiorFilter === "ok") return superiorStatus(record) === "OK";
-      if (masterSuperiorFilter === "pending") return superiorStatus(record) === "Pendiente";
-      return true;
-    }
-
-    function getFilteredMasterRecords() {
-      const tokens = parseMasterSearchTokens();
-
-      return activeMasterRecords().filter(record =>
-        recordMatchesMasterSearch(record, tokens) && recordMatchesMasterSuperiorFilter(record)
-      );
-    }
-
-    function applyMasterSearch() {
-      const input = document.getElementById("masterSearchInput");
-      masterSearchQuery = input ? input.value.trim() : "";
-      renderMasterTable();
-    }
-
-    function handleMasterSearchKey(event) {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      applyMasterSearch();
-    }
-
-    function setMasterSuperiorFilter(filter) {
-      masterSuperiorFilter = filter || "all";
-      renderMasterTable();
-    }
-
-    function clearMasterFilters() {
-      masterSearchQuery = "";
-      masterSuperiorFilter = "all";
-      renderMasterTable();
-    }
-
-    function renderMasterFilterBar(totalRecords, visibleRecords) {
-      const filterActive = masterSearchQuery || masterSuperiorFilter !== "all";
-      const countText = filterActive ? `${visibleRecords} de ${totalRecords}` : `${totalRecords}`;
-
-      return `
-        <div class="master-filter-bar">
-          <input
-            id="masterSearchInput"
-            class="master-filter-input"
-            value="${escapeHtml(masterSearchQuery)}"
-            placeholder="Buscar SKU(s): 123456789, 987654321"
-            onkeydown="handleMasterSearchKey(event)"
-          />
-          <button class="btn btn-soft btn-small" onclick="applyMasterSearch()">Buscar</button>
-          <button class="btn btn-soft btn-small ${masterSuperiorFilter === "pending" ? "btn-filter-active" : ""}" onclick="setMasterSuperiorFilter('pending')">Pendientes</button>
-          <button class="btn btn-soft btn-small ${masterSuperiorFilter === "ok" ? "btn-filter-active" : ""}" onclick="setMasterSuperiorFilter('ok')">OK</button>
-          <button class="btn btn-soft btn-small" onclick="clearMasterFilters()">Limpiar</button>
-          <div class="master-muted" style="grid-column:1 / -1;">${escapeHtml(countText)} SKU(s)</div>
-        </div>
-      `;
-    }
-
     function masterSortButton(label, field) {
       return `<button class="th-sort" onclick="setMasterSort('${field}')">${escapeHtml(label)} ${masterSortIndicator(field)}</button>`;
     }
@@ -5470,7 +5339,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         case "sku": return normalizeText(record.sku);
         case "marca": return normalizeText(record.marca);
         case "prioridad": return priorityNumber(record.prioridad);
-        case "estadoSuperior": return superiorStatus(record) === "OK" ? 1 : 0;
         case "estado": return normalizeText(record.estado);
         case "editor": return normalizeText(record.editor);
         case "revisor": return normalizeText(record.revisor);
@@ -5568,32 +5436,25 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const metricsBtn = document.getElementById("metricsBtn");
       if (!el || !masterCount) return;
 
-      const baseRecords = activeMasterRecords();
-      const filteredRecords = getFilteredMasterRecords();
-
-      masterCount.textContent = filteredRecords.length === baseRecords.length
-        ? String(baseRecords.length)
-        : `${filteredRecords.length} / ${baseRecords.length}`;
+      masterCount.textContent = records.length;
 
       if (metricsBtn) metricsBtn.classList.toggle("hidden", !isAdmin());
       renderMetricsPanel();
 
-      if (!baseRecords.length) {
-        el.innerHTML = `<div class="empty">Aún no hay registros visibles en el master.</div>`;
+      if (!records.length) {
+        el.innerHTML = `<div class="empty">Aún no hay registros en el master.</div>`;
         return;
       }
 
-      if (!filteredRecords.length) {
-        el.innerHTML = `
-          ${renderMasterFilterBar(baseRecords.length, filteredRecords.length)}
-          <div class="empty">No hay SKUs para ese filtro.</div>
-        `;
-        return;
-      }
-
-      const rows = sortMasterRecords(filteredRecords).map(record => {
+      const rows = sortMasterRecords(records).map(record => {
         const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
-        const imageNames = activeImageNames || record.lastImageNames || "-";
+        const archivedImages = getArchivedImages(record);
+        const archivedNames = archivedImages.map(img => img.name).filter(Boolean).slice(0, 3).join(", ");
+        const imageNames = activeImageNames || archivedNames || record.lastImageNames || "-";
+        const historyButton = archivedImages.length ? `
+          <div class="master-muted" style="margin-top:5px;">Historial: ${archivedImages.length} imagen(es)</div>
+          <button class="btn btn-soft btn-small" type="button" onclick="downloadMasterArchivedImages('${record.id}')">Descargar historial</button>
+        ` : "";
         const adminAssignment = isAdmin() ? `
           <div class="admin-assign">
             <select onchange="adminSetEditor('${record.id}', this.value)">
@@ -5615,7 +5476,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
               <div class="master-muted">${escapeHtml(record.marca || "Sin marca")}</div>
             </td>
             <td>${priorityPill(record.prioridad)}</td>
-            <td>${superiorStatusPill(record)}</td>
             <td>${statusPill(record.estado)}</td>
             <td>
               <div>${escapeHtml(record.editor || "-")}</div>
@@ -5631,7 +5491,10 @@ Después podrás volver a cargar este SKU desde Excel o manual.
               <div>${escapeHtml(record.medidas || "-")}</div>
               ${record.comentario ? `<div class="master-muted">${escapeHtml(record.comentario)}</div>` : ""}
             </td>
-            <td>${escapeHtml(imageNames)}</td>
+            <td>
+              <div>${escapeHtml(imageNames)}</div>
+              ${historyButton}
+            </td>
             <td>${escapeHtml(record.motivoRechazo || "-")}</td>
             <td>
               <div class="master-muted">
@@ -5644,15 +5507,13 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       }).join("");
 
       el.innerHTML = `
-        ${renderMasterFilterBar(baseRecords.length, filteredRecords.length)}
         <div class="master-table-wrap">
           <table class="master-table">
             <thead>
               <tr>
                 <th>${masterSortButton("SKU / Marca", "sku")}</th>
                 <th>${masterSortButton("Prioridad", "prioridad")}</th>
-                <th>${masterSortButton("Estado superior", "estadoSuperior")}</th>
-                <th>${masterSortButton("Estado actual", "estado")}</th>
+                <th>${masterSortButton("Estado", "estado")}</th>
                 <th>${masterSortButton("Editor / Asignación", "editor")}</th>
                 <th>${masterSortButton("Revisor", "revisor")}</th>
                 <th>${masterSortButton("# veces rechazadas", "rechazos")}</th>
@@ -5819,8 +5680,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const seen = new Set();
 
       records.forEach(record => {
-        if (isDiscardedRecord(record)) return;
-
         const uploadEvents = getUploadEvents(record);
 
         uploadEvents.forEach((event, index) => {
@@ -5885,8 +5744,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const seen = new Set();
 
       records.forEach(record => {
-        if (isDiscardedRecord(record)) return;
-
         getReviewEvents(record).forEach((event, index) => {
           const date = parseMetricDate(event.reviewedAt || event.date || record.reviewedAt || record.updatedAt || record.createdAt);
           if (!date) return;
@@ -6053,7 +5910,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     }
 
     function setMetricsPeriod(period) {
-      metricsPeriod = ["week", "month", "all"].includes(period) ? period : "week";
+      metricsPeriod = period || "week";
       renderMetricsPanel();
     }
 
@@ -6061,6 +5918,12 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const now = new Date();
       const end = new Date(now);
       end.setHours(23, 59, 59, 999);
+
+      if (period === "day") {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        return { start, end, label: `Día ${formatDate(start.toISOString()).split(" ")[0]}` };
+      }
 
       if (period === "month") {
         const start = startOfMonth(now);
@@ -6075,81 +5938,87 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       return { start, end: endOfWeekFromStart(start), label: `Semana ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(endOfWeekFromStart(start).toISOString()).split(" ")[0]}` };
     }
 
-    function dateInRange(value, start, end) {
-      const date = parseMetricDate(value);
-      if (!date) return false;
-
-      return date >= start && date <= end;
-    }
-
     function metricEventMatchesPeriod(event, period) {
       const { start, end } = metricPeriodRange(period);
       if (!start || !end) return true;
       return dateInRange(event.fecha, start, end);
     }
 
-    function recordsWithSuperiorStatus() {
-      return activeMasterRecords().map(record => ({
-        ...record,
-        estadoSuperior: superiorStatus(record),
-        rechazos: getRejectionCount(record)
-      }));
-    }
-
     function calculateSimpleMetrics(period = metricsPeriod) {
-      const safePeriod = ["week", "month", "all"].includes(period) ? period : "week";
-      const masterRows = recordsWithSuperiorStatus();
-      const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
-      const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
+      const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, period));
+      const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, period));
+      const byUser = {};
 
-      const ok = masterRows.filter(record => record.estadoSuperior === "OK").length;
-      const pending = masterRows.filter(record => record.estadoSuperior === "Pendiente").length;
-      const rejectedCurrent = masterRows.filter(record => [STATUS.RECHAZADO, STATUS.RECHAZADO_IA, STATUS.ERROR_IA].includes(record.estado)).length;
-      const rejectionEvents = reviewEvents.filter(event => event.result === "rejected").length;
-      const rejectionTotal = masterRows.reduce((acc, record) => acc + getRejectionCount(record), 0);
-      const rejectionsToShow = safePeriod === "all" ? rejectionTotal : rejectionEvents;
-      const total = masterRows.length;
-      const okRate = total ? Math.round((ok / total) * 1000) / 10 : 0;
-      const pendingRate = total ? Math.round((pending / total) * 1000) / 10 : 0;
+      Object.keys(USER_ROLES)
+        .filter(user => USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN)
+        .forEach(user => {
+          byUser[user] = { user, worked: 0, approved: 0, rejected: 0, reviewed: 0 };
+        });
 
-      const summaryRows = [
-        { Estado: "OK", Cantidad: ok, Porcentaje: `${okRate}%` },
-        { Estado: "Pendiente", Cantidad: pending, Porcentaje: `${pendingRate}%` },
-        { Estado: "Rechazos", Cantidad: rejectionsToShow, Porcentaje: "" }
-      ];
+      function ensure(user) {
+        const safe = user || "Sin editor";
+        if (!byUser[safe]) byUser[safe] = { user: safe, worked: 0, approved: 0, rejected: 0, reviewed: 0 };
+        return byUser[safe];
+      }
 
-      return {
-        summaryRows,
-        totals: { total, ok, pending, rejectedCurrent, rejectionEvents, rejectionTotal, rejectionsToShow, okRate, pendingRate },
-        workEvents,
-        reviewEvents,
-        masterRows,
-        ...metricPeriodRange(safePeriod)
-      };
+      workEvents.forEach(event => {
+        ensure(event.retocador).worked += 1;
+      });
+
+      reviewEvents.forEach(event => {
+        const item = ensure(event.retocador);
+        item.reviewed += 1;
+        if (event.result === "approved") item.approved += 1;
+        if (event.result === "rejected") item.rejected += 1;
+      });
+
+      const rows = Object.values(byUser)
+        .map(row => ({
+          ...row,
+          rejectionRate: row.reviewed ? Math.round((row.rejected / row.reviewed) * 1000) / 10 : 0
+        }))
+        .sort((a, b) => b.worked - a.worked || b.reviewed - a.reviewed || a.user.localeCompare(b.user, "es"));
+
+      const totals = rows.reduce((acc, row) => {
+        acc.worked += row.worked;
+        acc.approved += row.approved;
+        acc.rejected += row.rejected;
+        acc.reviewed += row.reviewed;
+        return acc;
+      }, { worked: 0, approved: 0, rejected: 0, reviewed: 0 });
+
+      totals.rejectionRate = totals.reviewed ? Math.round((totals.rejected / totals.reviewed) * 1000) / 10 : 0;
+
+      return { rows, totals, workEvents, reviewEvents, ...metricPeriodRange(period) };
     }
 
-    function renderSuperiorMetricBars(totals) {
-      const max = Math.max(totals.ok, totals.pending, totals.rejectionsToShow, 1);
-      const rows = [
-        { label: "OK", value: totals.ok, className: "bar-fill-ok", legendClass: "legend-approved" },
-        { label: "Pendiente", value: totals.pending, className: "bar-fill-pending", legendClass: "legend-pending" },
-        { label: "Rechazos", value: totals.rejectionsToShow, className: "bar-fill-rejected", legendClass: "legend-rejected" }
-      ];
-
+    function renderSimpleMetricBars(rows) {
+      const max = Math.max(...rows.map(row => row.reviewed), 1);
       return `
         <div class="metric-legend">
-          ${rows.map(row => `<span><i class="legend-dot ${row.legendClass}"></i>${escapeHtml(row.label)}</span>`).join("")}
+          <span><i class="legend-dot legend-approved"></i>Aprobadas</span>
+          <span><i class="legend-dot legend-rejected"></i>Rechazadas</span>
         </div>
         <div class="bar-list">
-          ${rows.map(row => `
-            <div class="bar-row">
-              <div>${escapeHtml(row.label)}</div>
-              <div class="bar-track">
-                <div class="bar-fill ${row.className}" style="width:${Math.round((row.value / max) * 100)}%"></div>
+          ${rows.map(row => {
+            const reviewed = row.reviewed;
+            const approvedWidth = reviewed ? (row.approved / reviewed) * 100 : 0;
+            const rejectedWidth = reviewed ? (row.rejected / reviewed) * 100 : 0;
+            const trackWidth = Math.round((reviewed / max) * 100);
+
+            return `
+              <div class="bar-row">
+                <div>${escapeHtml(row.user)}</div>
+                <div class="bar-track">
+                  <div class="bar-stack" style="width:${trackWidth}%">
+                    <div class="bar-fill-approved" style="width:${approvedWidth}%"></div>
+                    <div class="bar-fill-rejected" style="width:${rejectedWidth}%"></div>
+                  </div>
+                </div>
+                <div class="bar-counts">${row.approved} / ${row.rejected}</div>
               </div>
-              <div class="bar-counts">${row.value}</div>
-            </div>
-          `).join("")}
+            `;
+          }).join("")}
         </div>
       `;
     }
@@ -6167,82 +6036,114 @@ Después podrás volver a cargar este SKU desde Excel o manual.
 
       if (panel.classList.contains("hidden")) return;
 
-      const { totals } = calculateSimpleMetrics(metricsPeriod);
+      const { rows, totals, label } = calculateSimpleMetrics(metricsPeriod);
 
       panel.innerHTML = `
         <div class="metrics-title">
-          <h3>Métricas</h3>
+          <div>
+            <h3>Métricas de producción</h3>
+            <div class="master-muted">Vista limpia solicitada: fotos trabajadas, aprobadas, rechazadas y tasa de rechazo. Tasa = rechazadas / revisadas.</div>
+          </div>
           <div class="panel-title-actions">
             <div class="metrics-filter">
+              <span class="master-muted">Periodo</span>
               <select onchange="setMetricsPeriod(this.value)">
+                <option value="day" ${metricsPeriod === "day" ? "selected" : ""}>Día</option>
                 <option value="week" ${metricsPeriod === "week" ? "selected" : ""}>Semana</option>
                 <option value="month" ${metricsPeriod === "month" ? "selected" : ""}>Mes</option>
                 <option value="all" ${metricsPeriod === "all" ? "selected" : ""}>Histórico</option>
               </select>
             </div>
-            <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Excel</button>
-            <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar</button>
+            <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Descargar métricas Excel</button>
+            <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
           </div>
         </div>
 
+        <div class="master-muted" style="margin-bottom:12px;">${escapeHtml(label)}</div>
+
         <div class="metrics-grid">
-          <div class="metric-card metric-card-ok"><small>OK</small><strong>${totals.ok}</strong></div>
-          <div class="metric-card metric-card-pending"><small>Pendientes</small><strong>${totals.pending}</strong></div>
-          <div class="metric-card metric-card-rejected"><small>Rechazos</small><strong>${totals.rejectionsToShow}</strong></div>
+          <div class="metric-card"><small>Fotos trabajadas</small><strong>${totals.worked}</strong></div>
+          <div class="metric-card"><small>Fotos aprobadas</small><strong>${totals.approved}</strong></div>
+          <div class="metric-card"><small>Fotos rechazadas</small><strong>${totals.rejected}</strong></div>
+          <div class="metric-card"><small>Tasa de rechazo</small><strong>${totals.rejectionRate}%</strong></div>
         </div>
 
-        ${renderSuperiorMetricBars(totals)}
+        <div class="metrics-title"><h3>Aprobadas / rechazadas por usuario</h3></div>
+        ${renderSimpleMetricBars(rows)}
 
         <div class="master-table-wrap">
           <table class="metrics-table">
             <thead>
               <tr>
-                <th>Dato</th>
-                <th>Cantidad</th>
+                <th>Usuario</th>
+                <th>Fotos trabajadas</th>
+                <th>Fotos aprobadas</th>
+                <th>Fotos rechazadas</th>
+                <th>Fotos revisadas</th>
+                <th>Tasa rechazo</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td><strong>Total</strong></td><td>${totals.total}</td></tr>
-              <tr><td><strong>OK</strong></td><td>${totals.ok}</td></tr>
-              <tr><td><strong>Pendiente</strong></td><td>${totals.pending}</td></tr>
-              <tr><td><strong>Rechazos</strong></td><td>${totals.rejectionsToShow}</td></tr>
+              ${rows.map(row => `
+                <tr>
+                  <td><strong>${escapeHtml(row.user)}</strong></td>
+                  <td>${row.worked}</td>
+                  <td>${row.approved}</td>
+                  <td>${row.rejected}</td>
+                  <td>${row.reviewed}</td>
+                  <td>${row.rejectionRate}%</td>
+                </tr>
+              `).join("")}
             </tbody>
           </table>
         </div>
       `;
     }
 
-    function masterMetricsRows() {
-      return activeMasterRecords()
-        .map(record => {
-          const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
-          const imageNames = activeImageNames || record.lastImageNames || "";
+    function dateInRange(value, start, end) {
+      const date = parseMetricDate(value);
+      if (!date) return false;
 
-          return {
-            SKU: record.sku || "",
-            Marca: record.marca || "",
-            Prioridad: priorityNumber(record.prioridad),
-            "Estado superior": superiorStatus(record),
-            "Estado actual": record.estado || "",
-            Editor: record.editor || "",
-            Revisor: record.revisor || "",
-            "Cantidad rechazos": getRejectionCount(record),
-            Medidas: record.medidas || "",
-            Comentario: record.comentario || "",
-            Imagenes: imageNames,
-            "Motivo rechazo": record.motivoRechazo || "",
-            "Creado": formatDate(record.createdAt),
-            "Tomado": formatDate(record.takenAt),
-            "Subido": formatDate(record.uploadedAt),
-            "Revisado": formatDate(record.reviewedAt),
-            "Descargado": formatDate(record.downloadedAt),
-            "Última fecha": formatDate(getLastMasterActivityDate(record))
-          };
-        })
-        .sort((a, b) => String(a["Estado superior"]).localeCompare(String(b["Estado superior"]), "es") || String(a.SKU).localeCompare(String(b.SKU), "es", { numeric: true }));
+      return date >= start && date <= end;
     }
 
-    function emptySafeRows(rows, message = "Sin datos") {
+    function groupSkuWorkRows(events, start, end) {
+      const map = new Map();
+
+      events.forEach(event => {
+        if (!dateInRange(event.fecha, start, end)) return;
+
+        const key = `${event.retocador}|${event.sku}`;
+        const existing = map.get(key) || {
+          Retocador: event.retocador,
+          SKU: event.sku,
+          Marca: event.marca || "",
+          Mes: event.mes || monthKeyFromDate(event.fecha),
+          "Estado actual": event.estadoActual || "",
+          "Cantidad imágenes": 0,
+          Archivos: [],
+          "Primera fecha": event.fecha,
+          "Última fecha": event.fecha
+        };
+
+        existing["Cantidad imágenes"] += 1;
+        if (event.archivo) existing.Archivos.push(event.archivo);
+        if (new Date(event.fecha) < new Date(existing["Primera fecha"])) existing["Primera fecha"] = event.fecha;
+        if (new Date(event.fecha) > new Date(existing["Última fecha"])) existing["Última fecha"] = event.fecha;
+        map.set(key, existing);
+      });
+
+      return [...map.values()]
+        .sort((a, b) => a.Retocador.localeCompare(b.Retocador, "es") || String(a.SKU).localeCompare(String(b.SKU), "es"))
+        .map(row => ({
+          ...row,
+          "Primera fecha": formatDate(row["Primera fecha"]),
+          "Última fecha": formatDate(row["Última fecha"]),
+          Archivos: [...new Set(row.Archivos)].join(", ")
+        }));
+    }
+
+    function emptySafeRows(rows, message = "Sin datos para el periodo") {
       return rows.length ? rows : [{ Información: message }];
     }
 
@@ -6250,6 +6151,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       if (!requireAdmin()) return;
 
       const periods = [
+        { key: "day", label: "Día" },
         { key: "week", label: "Semana" },
         { key: "month", label: "Mes" },
         { key: "all", label: "Histórico" }
@@ -6262,12 +6164,25 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         summaryRows.push({
           Periodo: period.label,
           Rango: data.label,
-          "Total visible": data.totals.total,
-          OK: data.totals.ok,
-          Pendiente: data.totals.pending,
-          Rechazos: data.totals.rejectionsToShow,
-          "% OK": `${data.totals.okRate}%`,
-          "% Pendiente": `${data.totals.pendingRate}%`
+          Usuario: "TOTAL",
+          "Fotos trabajadas": data.totals.worked,
+          "Fotos aprobadas": data.totals.approved,
+          "Fotos rechazadas": data.totals.rejected,
+          "Fotos revisadas": data.totals.reviewed,
+          "Tasa rechazo": `${data.totals.rejectionRate}%`
+        });
+
+        data.rows.forEach(row => {
+          summaryRows.push({
+            Periodo: period.label,
+            Rango: data.label,
+            Usuario: row.user,
+            "Fotos trabajadas": row.worked,
+            "Fotos aprobadas": row.approved,
+            "Fotos rechazadas": row.rejected,
+            "Fotos revisadas": row.reviewed,
+            "Tasa rechazo": `${row.rejectionRate}%`
+          });
         });
       });
 
@@ -6283,7 +6198,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         Tipo: "Foto trabajada",
         Resultado: "Trabajada",
         Revisor: "",
-        "Estado superior": superiorStatus(getRecordBySku(event.sku) || {}),
         "Estado actual": event.estadoActual
       }));
 
@@ -6299,7 +6213,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         Tipo: "Revisión",
         Resultado: event.resultado,
         Revisor: event.revisor,
-        "Estado superior": superiorStatus(getRecordBySku(event.sku) || {}),
         "Estado actual": event.estadoActual
       }));
 
@@ -6307,10 +6220,16 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         .sort((a, b) => new Date(b._fechaOrden || 0) - new Date(a._fechaOrden || 0))
         .map(({ _fechaOrden, ...row }) => row);
 
+      const infoRows = [
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.2.0 IA" },
+        { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
+        { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
+      ];
+
       const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(infoRows)), "Info");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(masterMetricsRows())), "Master completo");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(detailRows, "Sin eventos registrados")), "Eventos");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(detailRows)), "Detalle completo");
       XLSX.writeFile(workbook, `metricas_flujo_ia_${dateStamp()}.xlsx`);
     }
 
@@ -6535,17 +6454,21 @@ Después podrás volver a cargar este SKU desde Excel o manual.
 
           createReviewEvents(record, "approved", plan.approved);
 
-          // Al aprobar una o más alternativas, las demás no vuelven a trabajo: se descartan y se eliminan de Storage.
-          for (const image of allReviewedImages) {
-            if (!image.path) continue;
-            try {
-              await deleteObject(storageRef(storage, image.path));
-            } catch (error) {
-              console.warn("No se pudo borrar imagen revisada:", image.path, error);
-            }
-          }
-
           const approvedByIa = isAiGeneratedRecord(record);
+          archiveImagesForRecord(record, plan.approved, approvedByIa ? "accepted_ia" : "approved", {
+            archivedAt: now,
+            reviewedAt: now,
+            reviewedBy: currentUser(),
+            archiveReason: approvedByIa ? "Aceptada por revisión IA" : "Aprobada y descargada",
+            approved: true
+          });
+          archiveImagesForRecord(record, plan.rejected, approvedByIa ? "discarded_ia" : "discarded", {
+            archivedAt: now,
+            reviewedAt: now,
+            reviewedBy: currentUser(),
+            archiveReason: "Alternativa no seleccionada al aprobar"
+          });
+
           record.estado = approvedByIa ? STATUS.ACEPTADO_IA : STATUS.DESCARGADO;
           record.revisor = currentUser();
           record.motivoRechazo = "";
@@ -6566,7 +6489,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         }
 
         await refresh();
-        toast(`${totalFiles} imagen(es) aprobada(s) descargadas. Las alternativas no marcadas fueron descartadas.`);
+        toast(`${totalFiles} imagen(es) aprobada(s) descargadas. El historial quedó guardado en Master.`);
       } catch (error) {
         console.error(error);
         alert(error.message || "No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
@@ -6596,6 +6519,13 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           createReviewEvents(record, "rejected", images);
 
           const rejectedByIa = isAiGeneratedRecord(record);
+          archiveImagesForRecord(record, images, rejectedByIa ? "rejected_ia" : "rejected", {
+            archivedAt: now,
+            reviewedAt: now,
+            reviewedBy: currentUser(),
+            archiveReason: rejectedByIa ? "Rechazo IA automática" : "Rechazo manual",
+            rejectionReason: rejectedByIa ? `Rechazo IA automática: ${reasonById[id]}` : reasonById[id]
+          });
           record.estado = rejectedByIa ? STATUS.RECHAZADO_IA : STATUS.RECHAZADO;
           record.revisor = currentUser();
           record.motivoRechazo = rejectedByIa ? `Rechazo IA automática: ${reasonById[id]}` : reasonById[id];
@@ -6610,7 +6540,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           record.generatedImages = images.map(image => ({
             ...image,
             reviewStatus: "rejected",
-            rejectionReason: reasonById[id],
+            rejectionReason: record.motivoRechazo,
             rejectedAt: now,
             rejectedBy: currentUser()
           }));
@@ -6624,7 +6554,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         }
 
         await refresh();
-        toast(`${ids.length} SKU(s) rechazados. Las imágenes vuelven a SKU a trabajar.`);
+        toast(`${ids.length} SKU(s) rechazados. Los Rechazado IA quedan libres para trabajo manual.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo rechazar. Revisa permisos de Firestore o conexión.");
@@ -6699,7 +6629,7 @@ ${image.name || "Imagen sin nombre"}`);
     }
 
     async function deleteImagesFromStorage(record) {
-      const images = getRecordImages(record);
+      const images = activeAndArchivedImages(record);
 
       for (const image of images) {
         if (!image.path) continue;
@@ -6832,6 +6762,160 @@ ${image.name || "Imagen sin nombre"}`);
       return [];
     }
 
+    function getArchivedImages(record) {
+      if (!Array.isArray(record?.archivedImages)) return [];
+      return [...record.archivedImages]
+        .filter(image => image && image.path)
+        .sort((a, b) => {
+          const ad = new Date(a.archivedAt || a.reviewedAt || a.uploadedAt || 0).getTime();
+          const bd = new Date(b.archivedAt || b.reviewedAt || b.uploadedAt || 0).getTime();
+          return bd - ad;
+        });
+    }
+
+    function archivedImageKey(image) {
+      return String(image?.path || image?.id || image?.name || "");
+    }
+
+    function archiveImageStatusLabel(status) {
+      const labels = {
+        approved: "Aprobada",
+        accepted_ia: "Aceptado IA",
+        rejected: "Rechazada",
+        rejected_ia: "Rechazado IA",
+        discarded: "Descartada",
+        discarded_ia: "Descartada IA",
+        replaced_manual: "Reemplazada manual",
+        replaced_ia: "Reemplazada IA"
+      };
+      return labels[status] || status || "Archivada";
+    }
+
+    function archiveImageFilePrefix(status) {
+      return safeFileName(archiveImageStatusLabel(status)).toLowerCase() || "archivo";
+    }
+
+    function archiveImagesForRecord(record, images, status, options = {}) {
+      if (!record || !Array.isArray(images) || !images.length) return;
+      if (!Array.isArray(record.archivedImages)) record.archivedImages = [];
+
+      const now = options.archivedAt || new Date().toISOString();
+      const existing = new Map(record.archivedImages.map(image => [archivedImageKey(image), image]));
+
+      images.forEach((image, index) => {
+        if (!image || !image.path) return;
+        const key = archivedImageKey(image);
+        const archived = {
+          ...image,
+          archiveId: image.archiveId || `${record.id || record.sku || "sku"}_archive_${Date.now()}_${index}_${Math.random().toString(16).slice(2)}`,
+          reviewStatus: status || image.reviewStatus || "archived",
+          archiveStatus: status || image.archiveStatus || image.reviewStatus || "archived",
+          archiveStatusLabel: archiveImageStatusLabel(status || image.archiveStatus || image.reviewStatus),
+          archivedAt: now,
+          reviewedAt: options.reviewedAt || image.reviewedAt || now,
+          reviewedBy: options.reviewedBy || image.reviewedBy || currentUser() || "",
+          archiveReason: options.archiveReason || image.archiveReason || "",
+          rejectionReason: options.rejectionReason || image.rejectionReason || "",
+          approved: options.approved ?? image.approved ?? false,
+          generatedByAi: Boolean(image.generatedByAi || image.source === "gemini"),
+          matchedSku: image.matchedSku || record.sku
+        };
+
+        if (existing.has(key)) {
+          Object.assign(existing.get(key), archived);
+        } else {
+          record.archivedImages.push(archived);
+          existing.set(key, archived);
+        }
+      });
+    }
+
+    function activeAndArchivedImages(record) {
+      const all = [...getRecordImages(record), ...getArchivedImages(record)];
+      const seen = new Set();
+      return all.filter(image => {
+        const key = archivedImageKey(image);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function archivedImageZipName(record, image, index, usedNames) {
+      const sourceName = image.name || `${record.sku}_${String(index + 1).padStart(2, "0")}.png`;
+      const cleanName = ensureImageExtension(sourceName, image.type || "image/png");
+      const prefix = archiveImageFilePrefix(image.archiveStatus || image.reviewStatus);
+      return uniqueZipFileName(`${prefix}_${String(index + 1).padStart(2, "0")}_${cleanName}`, record.sku, usedNames);
+    }
+
+    async function downloadMasterArchivedImages(id) {
+      if (!requireTabAccess("master")) return;
+
+      const record = getRecord(id);
+      if (!record) {
+        alert("No se encontró el SKU en Master.");
+        return;
+      }
+
+      const images = getArchivedImages(record);
+      if (!images.length) {
+        alert("Este SKU no tiene imágenes guardadas en historial.");
+        return;
+      }
+
+      try {
+        toast("Preparando historial de imágenes...");
+        const zip = new JSZip();
+        const folder = zip.folder(safeFileName(record.sku));
+        const usedNames = new Set();
+        let downloaded = 0;
+        const lines = [];
+
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          if (!image.path) continue;
+
+          try {
+            const blob = await downloadStorageBlob(image.path);
+            const fileName = archivedImageZipName(record, image, i, usedNames);
+            folder.file(fileName, blob);
+            downloaded++;
+            lines.push([
+              fileName,
+              image.name || "",
+              archiveImageStatusLabel(image.archiveStatus || image.reviewStatus),
+              image.reviewedBy || "",
+              formatDate(image.reviewedAt || image.archivedAt || image.uploadedAt),
+              image.rejectionReason || image.archiveReason || ""
+            ].join(" | "));
+          } catch (error) {
+            console.warn("No se pudo descargar imagen histórica:", image.path, error);
+          }
+        }
+
+        if (!downloaded) {
+          alert("No se pudo descargar ninguna imagen del historial. Revisa CORS/Storage.");
+          return;
+        }
+
+        folder.file("historial_imagenes.txt", [
+          `SKU: ${record.sku}`,
+          `Marca: ${record.marca || ""}`,
+          `Estado actual: ${record.estado || ""}`,
+          "",
+          "Archivo ZIP | Archivo original | Estado | Revisado por | Fecha | Motivo",
+          ...lines
+        ].join("\n"));
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, `historial_${safeFileName(record.sku)}_${dateStamp()}.zip`);
+        toast(`Historial descargado: ${downloaded} imagen(es).`);
+      } catch (error) {
+        console.error(error);
+        alert(error.message || "No se pudo descargar el historial de imágenes.");
+      }
+    }
+
     async function downloadStorageBlob(path) {
       const ref = storageRef(storage, path);
       const errors = [];
@@ -6951,43 +7035,23 @@ ${image.name || "Imagen sin nombre"}`);
         .filter(record => canGenerateAiForRecord(record));
     }
 
-    function getPendingAutoIaRecords() {
-      return aiGenerationCandidateRecords(records);
-    }
-
-    function renderAutoIaButton() {
-      const btn = document.getElementById("autoIaBtn");
-      if (!btn) return;
-
-      const admin = isAdmin();
-      const candidates = admin ? getPendingAutoIaRecords() : [];
-
-      btn.classList.toggle("hidden", !admin);
-      btn.disabled = !admin || !candidates.length || aiGenerating || uploadProcessing || reviewProcessing;
-      btn.textContent = candidates.length ? `Generar IA (${candidates.length})` : "Generar IA";
-    }
-
-    async function confirmAndRunAiGeneration(inputRecords, source = "") {
+    async function maybePromptAutoGenerateForNewRecords(inputRecords, source = "") {
       if (!isAdmin()) return;
 
       const candidates = aiGenerationCandidateRecords(inputRecords);
-      if (!candidates.length) {
-        alert("No hay SKUs pendientes disponibles para IA.");
-        renderAutoIaButton();
-        return;
-      }
+      if (!candidates.length) return;
 
       if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
-        alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
+        alert("Los SKUs quedaron cargados, pero falta configurar IA_BACKEND_URL con la URL real de Vercel.");
         return;
       }
 
       const totalSkus = candidates.length;
       const totalImages = totalSkus * IA_OPTIONS_COUNT;
       const confirmed = confirm(
+        `Se agregaron ${totalSkus} SKU(s) nuevo(s).\n\n` +
         `Se generarán automáticamente ${IA_OPTIONS_COUNT} opciones por SKU.\n` +
-        `SKU(s): ${totalSkus}\n` +
-        `Total imágenes IA: ${totalImages}\n\n` +
+        `Total imágenes IA: ${totalImages}.\n\n` +
         `Proceso por lotes de ${IA_BATCH_CONCURRENCY} SKU(s).\n\n` +
         "¿Enviar ahora a Gemini?"
       );
@@ -7002,12 +7066,6 @@ ${image.name || "Imagen sin nombre"}`);
       }
 
       await runAiBatchGeneration(candidates.map(record => record.id), iaPin.trim(), source);
-      renderAutoIaButton();
-    }
-
-    async function generateAiForPendingRecords() {
-      if (!requireAdmin()) return;
-      await confirmAndRunAiGeneration(getPendingAutoIaRecords(), "boton-admin");
     }
 
     async function runWithConcurrency(items, limit, worker) {
@@ -7052,7 +7110,11 @@ ${image.name || "Imagen sin nombre"}`);
       if (!record || !files?.length) return;
       if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
       if (getRecordImages(record).length) {
-        await deleteImagesFromStorage(record);
+        archiveImagesForRecord(record, getRecordImages(record), "replaced_ia", {
+          archiveReason: "Reemplazadas por nuevo intento IA",
+          reviewedBy: currentUser(),
+          reviewedAt: new Date().toISOString()
+        });
         record.generatedImages = [];
         record.generatedImageName = "";
       }
@@ -7221,7 +7283,6 @@ ${image.name || "Imagen sin nombre"}`);
         alert(error.message || "No se pudo completar el lote IA.");
       } finally {
         aiGenerating = false;
-        renderAutoIaButton();
       }
     }
 
@@ -7515,7 +7576,6 @@ ${image.name || "Imagen sin nombre"}`);
       toggleMetricsPanel,
       setMetricsPeriod,
       downloadMetricsExcel,
-      generateAiForPendingRecords,
       toggleNotificationsPanel,
       openNotificationsPanel,
       openNotificationTarget,
@@ -7530,13 +7590,10 @@ ${image.name || "Imagen sin nombre"}`);
       saveBulkWorkEdit,
       adminRemoveSelectedSkusFromWork,
       setMasterSort,
-      applyMasterSearch,
-      handleMasterSearchKey,
-      setMasterSuperiorFilter,
-      clearMasterFilters,
       openImageModal,
       closeImageModal,
-      generateAiOptions
+      generateAiOptions,
+      downloadMasterArchivedImages
     });
   </script>
 </body>
