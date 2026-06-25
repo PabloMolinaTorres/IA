@@ -1795,7 +1795,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.5 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.7 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2082,7 +2082,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.5 IA";
+    const APP_VERSION = "V1.2.7 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2094,6 +2094,7 @@
     const IA_OPTIONS_COUNT = 2;
     const IA_CONFIRM_PIN = "3400";
     const IA_BATCH_CONCURRENCY = 3;
+    const IA_STALE_GENERATING_MINUTES = 5;
     const IA_SYSTEM_USER = "Gemini IA";
 
 const firebaseConfig = {
@@ -7439,15 +7440,39 @@ ${image.name || "Imagen sin nombre"}`);
       }
     }
 
+    function isStaleGeneratingAiRecord(record) {
+      if (!record || record.estado !== STATUS.GENERANDO_IA) return false;
+
+      const stamp = record.iaStartedAt || record.updatedAt || record.createdAt || "";
+      const time = stamp ? new Date(stamp).getTime() : 0;
+
+      if (!time || Number.isNaN(time)) return true;
+
+      const minutes = (Date.now() - time) / 60000;
+      return minutes >= IA_STALE_GENERATING_MINUTES;
+    }
+
     function canGenerateAiForRecord(record) {
       if (!record || !isAdmin()) return false;
-      if (![STATUS.PENDIENTE, STATUS.ERROR_IA, STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) return false;
 
       const images = getRecordImages(record);
-      if (!images.length) return true;
+
+      if (record.estado === STATUS.PENDIENTE) {
+        return !images.length;
+      }
+
+      if (record.estado === STATUS.ERROR_IA) {
+        return true;
+      }
+
+      if (isStaleGeneratingAiRecord(record)) {
+        return true;
+      }
 
       // En rechazados se permite regenerar IA: las imágenes anteriores quedan archivadas en historial.
-      if ([STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) return images.every(image => isImageRejected(image));
+      if ([STATUS.RECHAZADO, STATUS.RECHAZADO_IA].includes(record.estado)) {
+        return !images.length || images.every(image => isImageRejected(image));
+      }
 
       return false;
     }
