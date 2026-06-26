@@ -1,0 +1,3062 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>WIDA Medidas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./falabella.png" type="image/png" />
+  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --card2: #f1f3f5;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --greenFalabella: #8fca00;
+      --greenDark: #6fa800;
+      --red: #ef4444;
+      --orange: #fb923c;
+      --yellow: #facc15;
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .07);
+      --radius: 18px;
+    }
+
+    body.dark {
+      --bg: #060606;
+      --card: #111111;
+      --card2: #1b1b1b;
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --border: #2a2a2a;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; font-family: 'Lato', sans-serif; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button, input, select, textarea { font-family: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 3px 18px rgba(0, 0, 0, .04);
+    }
+
+    .topbar-inner {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .logo-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--greenFalabella), #c9f000);
+      color: white;
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(143, 202, 0, .25);
+    }
+
+    .brand h1 { margin: 0; font-size: 19px; font-weight: 900; line-height: 1.1; }
+    .brand small { display: block; color: var(--muted); margin-top: 2px; font-size: 12px; }
+
+    .version {
+      display: inline-flex;
+      margin-left: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(143, 202, 0, .13);
+      color: var(--greenDark);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+
+    .module-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px;
+    }
+
+    .module-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 900;
+      font-size: 12px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .module-link.active {
+      color: white;
+      background: var(--greenFalabella);
+    }
+
+    .user-select {
+      min-width: 190px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    .theme-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .main { max-width: 1450px; margin: 0 auto; padding: 22px; }
+
+    .lock-message {
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .hidden { display: none !important; }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .btn:disabled, .tab:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--greenFalabella); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--greenDark); }
+    .btn-soft { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .btn-blue { background: var(--blue); color: white; }
+    .btn-red { background: var(--red); color: white; }
+    .btn-orange { background: var(--orange); color: white; }
+    .btn-small { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+
+    .role-badge {
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .role-admin { background: rgba(143, 202, 0, .14); color: var(--greenDark); border-color: rgba(143, 202, 0, .28); }
+    .role-retocador { background: rgba(59, 130, 246, .13); color: var(--blue); border-color: rgba(59, 130, 246, .25); }
+    .role-revisor { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
+
+    .user-guide {
+      display: none;
+      position: absolute;
+      top: 54px;
+      right: 48px;
+      z-index: 90;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(143, 202, 0, .45);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      width: 230px;
+      font-weight: 900;
+      line-height: 1.25;
+    }
+
+    .user-guide small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    body.needs-user:before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(15, 23, 42, .46);
+      backdrop-filter: grayscale(1) blur(1px);
+      pointer-events: none;
+    }
+
+    body.needs-user .topbar { z-index: 70; }
+    body.needs-user .main { filter: grayscale(1); opacity: .35; pointer-events: none; user-select: none; }
+    body.needs-user .lock-message { position: relative; z-index: 80; pointer-events: auto; }
+    body.needs-user #currentUser {
+      position: relative;
+      z-index: 90;
+      background: white;
+      color: #1f2933;
+      border-color: var(--greenFalabella);
+      box-shadow: 0 0 0 7px rgba(143, 202, 0, .25), 0 14px 36px rgba(0, 0, 0, .20);
+      animation: userPulse 1.15s ease-in-out infinite;
+    }
+    body.needs-user .user-guide { display: block; }
+    @keyframes userPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat small {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .stat strong { display: block; font-size: 25px; margin-top: 5px; }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+
+    .tab {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    .tab.active { background: var(--greenFalabella); color: white; border-color: var(--greenFalabella); }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .tab-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .list-panel, .detail-panel, .master-panel, .manual-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .manual-panel { padding: 16px; margin-bottom: 18px; overflow: visible; }
+
+    .panel-title {
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+    .sku-list { max-height: calc(100vh - 285px); overflow-y: auto; }
+
+    .sku-item {
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: grid;
+      gap: 7px;
+    }
+
+    .sku-item:hover, .sku-item.active { background: rgba(143, 202, 0, .08); }
+
+    .sku-item-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .sku-code { font-size: 16px; font-weight: 900; }
+    .sku-brand { color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.35; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .status { background: var(--card2); color: var(--muted); border-color: var(--border); }
+    .status-pendiente { background: rgba(59, 130, 246, .13); color: var(--blue); border-color: rgba(59, 130, 246, .25); }
+    .status-trabajo { background: rgba(59, 130, 246, .13); color: var(--blue); border-color: rgba(59, 130, 246, .25); }
+    .status-generando { background: rgba(143, 202, 0, .14); color: var(--greenDark); border-color: rgba(143, 202, 0, .28); }
+    .status-error { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+    .status-revision { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
+    .status-aprobado, .status-descargado { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
+    .status-rechazado { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+
+    .detail-content { padding: 18px; }
+    .empty { padding: 30px; color: var(--muted); text-align: center; font-weight: 700; line-height: 1.45; }
+
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .detail-header h2 { margin: 0; font-size: 24px; }
+    .detail-header small { display: block; margin-top: 4px; color: var(--muted); font-weight: 700; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field label, .measure-row label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .field input, .field select, .field textarea, .measure-row input, .master-filter-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    .field textarea { min-height: 90px; resize: vertical; line-height: 1.35; }
+
+    .manual-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .manual-title h2 { margin: 0; font-size: 18px; }
+
+    .manual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .manual-grid .wide { grid-column: span 3; }
+
+    .manual-actions, .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .actions { justify-content: flex-start; margin-top: 0; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .info-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .info-box small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .info-box span { white-space: pre-wrap; line-height: 1.35; font-size: 14px; font-weight: 700; }
+
+    .section-block {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .section-head strong { font-size: 14px; font-weight: 900; }
+    .section-head small { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    .measure-list { display: grid; gap: 8px; }
+
+    .measure-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .media-item {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+      cursor: pointer;
+    }
+
+    .media-item:hover, .media-item.active { border-color: var(--greenFalabella); background: rgba(143, 202, 0, .08); }
+    .media-item img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 10px; background: white; }
+    .media-item strong { font-size: 12px; font-weight: 900; text-align: center; }
+    .media-item small { font-size: 11px; color: var(--muted); text-align: center; font-weight: 700; }
+
+    .preview-wrap {
+      display: grid;
+      grid-template-columns: minmax(260px, 520px) 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .measure-preview {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .measure-preview img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 7%;
+    }
+
+    .measure-line {
+      position: absolute;
+      background: rgba(75, 85, 99, .95);
+      z-index: 2;
+    }
+
+    .measure-line:before, .measure-line:after {
+      content: "";
+      position: absolute;
+      background: rgba(75, 85, 99, .95);
+    }
+
+    .line-height { left: 8%; top: 22%; width: 2px; height: 58%; }
+    .line-height:before, .line-height:after { left: -6px; width: 14px; height: 2px; }
+    .line-height:before { top: 0; } .line-height:after { bottom: 0; }
+
+    .line-width { left: 22%; bottom: 10%; width: 62%; height: 2px; }
+    .line-width:before, .line-width:after { top: -6px; width: 2px; height: 14px; }
+    .line-width:before { left: 0; } .line-width:after { right: 0; }
+
+    .line-depth {
+      left: 14%;
+      bottom: 16%;
+      width: 28%;
+      height: 2px;
+      transform: rotate(17deg);
+      transform-origin: left center;
+    }
+    .line-depth:before, .line-depth:after { top: -6px; width: 2px; height: 14px; }
+    .line-depth:before { left: 0; } .line-depth:after { right: 0; }
+
+    .measure-label {
+      position: absolute;
+      z-index: 3;
+      color: #6b7280;
+      background: rgba(255, 255, 255, .80);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-weight: 900;
+      font-size: 18px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .label-height { left: 3%; top: 48%; transform: translateY(-50%); }
+    .label-width { left: 52%; bottom: 4%; transform: translateX(-50%); }
+    .label-depth { left: 12%; bottom: 4%; }
+
+    .measure-summary {
+      display: grid;
+      gap: 8px;
+    }
+
+    .measure-summary-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .measure-summary-item strong { font-size: 13px; }
+    .measure-summary-item span { color: var(--muted); font-weight: 900; text-align: right; }
+
+    .upload-box {
+      border: 2px dashed var(--border);
+      background: var(--card2);
+      border-radius: var(--radius);
+      padding: 34px 20px;
+      text-align: center;
+      cursor: pointer;
+      display: block;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+      margin-bottom: 14px;
+    }
+
+    .upload-box:hover, .upload-box.drag-over { border-color: var(--greenFalabella); background: rgba(143, 202, 0, .08); transform: translateY(-1px); }
+    .upload-box strong { display: block; font-size: 17px; margin-bottom: 6px; }
+    .upload-box small { color: var(--muted); line-height: 1.4; }
+    .input-file { display: none; }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .review-measures-big {
+      position: sticky;
+      top: 95px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .review-measures-big h3 { margin: 0; font-size: 20px; }
+    .review-measures-big .big-line { display: grid; gap: 2px; padding: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+    .review-measures-big .big-line small { color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+    .review-measures-big .big-line strong { font-size: 24px; }
+
+    .review-image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .review-image-card {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .review-image-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .review-image-card img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      display: block;
+      background: white;
+      cursor: zoom-in;
+    }
+
+    .reject-box { display: grid; gap: 7px; margin-top: 12px; }
+    .reject-box label { color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+    .reject-box textarea {
+      width: 100%;
+      min-height: 108px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      line-height: 1.35;
+    }
+
+    .master-filter-bar {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .master-table-wrap { width: 100%; overflow: auto; }
+    .master-table { width: 100%; border-collapse: collapse; min-width: 980px; }
+    .master-table th, .master-table td { padding: 12px 11px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: 13px; }
+    .master-table th { background: var(--card2); color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; z-index: 1; }
+    .master-table tr:hover td { background: rgba(143, 202, 0, .05); }
+    .master-sku { font-weight: 900; font-size: 14px; }
+    .master-muted { color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, .82);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .image-modal-content {
+      width: min(96vw, 1320px);
+      height: min(92vh, 900px);
+      background: #111;
+      border-radius: 18px;
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+    }
+
+    .image-modal-title { color: white; font-weight: 900; font-size: 14px; word-break: break-word; }
+    .image-modal-content img { width: 100%; height: 100%; object-fit: contain; background: white; border-radius: 12px; min-height: 0; }
+
+    .image-modal-close {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 0;
+      background: white;
+      color: #111;
+      font-size: 28px;
+      font-weight: 900;
+      cursor: pointer;
+      z-index: 101;
+    }
+
+    #aiProgressModal.image-modal:not(.hidden) {
+      inset: auto;
+      right: 18px;
+      bottom: 18px;
+      z-index: 90;
+      width: min(420px, calc(100vw - 36px));
+      min-height: 0;
+      background: transparent;
+      padding: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    #aiProgressModal .image-modal-content {
+      width: 100%;
+      height: auto;
+      min-height: 0;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(143, 202, 0, .28);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    #aiProgressModal .image-modal-title { color: var(--text); }
+    .ai-progress-wrap { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+    .ai-progress-track { width: 100%; height: 12px; border-radius: 999px; background: var(--card2); border: 1px solid var(--border); overflow: hidden; }
+    .ai-progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--greenFalabella), var(--greenDark)); transition: width .35s ease; }
+    .ai-progress-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); }
+    .ai-progress-note { font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 50;
+      background: #111827;
+      color: white;
+      padding: 13px 15px;
+      border-radius: 14px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, .25);
+      font-weight: 900;
+      display: none;
+      max-width: 360px;
+    }
+
+    body.dark .toast { background: white; color: #111; }
+
+    @media (max-width: 1000px) {
+      .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .top-right { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+      .module-nav { order: -1; width: 100%; }
+      .module-link { flex: 1; text-align: center; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .layout, .manual-grid, .info-grid, .preview-wrap, .compare-grid { grid-template-columns: 1fr; }
+      .manual-grid .wide { grid-column: span 1; }
+      .review-measures-big { position: static; }
+      .sku-list { max-height: none; }
+      .measure-row { grid-template-columns: 1fr; }
+      .master-filter-bar { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo-box">IA</div>
+        <div>
+          <h1>WIDA Medidas <span class="version">V1.0</span></h1>
+          <small>Falabella Chile</small>
+        </div>
+      </div>
+
+      <div class="top-right">
+        <nav class="module-nav" aria-label="Módulos">
+          <a class="module-link" href="./index.html">Flujo IA</a>
+          <a class="module-link active" href="./medidas.html">Medidas</a>
+        </nav>
+
+        <select id="currentUser" class="user-select" onchange="handleUserChange()">
+          <option value="">Seleccionar usuario</option>
+          <option>Pablo</option>
+          <option>Mylena</option>
+          <option>Fernanda</option>
+          <option>Fernando</option>
+          <option>Marcos</option>
+          <option>Mica</option>
+          <option>Valentina</option>
+          <option>Kathe</option>
+          <option>Cesar</option>
+          <option>Michelle</option>
+          <option>Sandra</option>
+          <option>Rossana</option>
+          <option>Sebastian</option>
+        </select>
+
+        <span id="userRoleBadge" class="role-badge hidden"></span>
+
+        <div id="userGuide" class="user-guide">
+          Elegir usuario
+          <small>Selecciona tu perfil. Si es Admin, se pedirá la clave al elegirlo.</small>
+        </div>
+
+        <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div id="lockMessage" class="lock-message">Configura Firebase y selecciona tu usuario para comenzar.</div>
+
+    <section id="stats" class="stats"></section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="work" onclick="setTab('work')">SKU a trabajar</button>
+      <button class="tab" data-tab="upload" onclick="setTab('upload')">Subir trabajado</button>
+      <button class="tab" data-tab="review" onclick="setTab('review')">Revisión</button>
+      <button class="tab" data-tab="master" onclick="setTab('master')">Master</button>
+    </nav>
+
+    <section id="view-work" class="view active">
+      <div class="tab-actions">
+        <button id="manualBtn" class="btn btn-soft" onclick="toggleManualPanel()" disabled>Agregar manual</button>
+        <button id="loadExcelBtn" class="btn btn-primary" onclick="document.getElementById('excelInput').click()" disabled>Cargar Excel</button>
+        <button id="templateBtn" class="btn btn-soft" onclick="downloadTemplate()" disabled>Descargar plantilla</button>
+        <button id="autoIaBtn" class="btn btn-primary hidden" onclick="generateAiForPendingRecords()">Generar IA</button>
+        <input id="excelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)" />
+      </div>
+
+      <section id="manualPanel" class="manual-panel hidden">
+        <div class="manual-title">
+          <h2>Agregar SKU manual</h2>
+          <button class="btn btn-soft btn-small" onclick="toggleManualPanel()">Cerrar</button>
+        </div>
+        <div class="manual-grid">
+          <div class="field">
+            <label>SKU *</label>
+            <input id="manualSku" placeholder="Ej: 123456789" />
+          </div>
+          <div class="field">
+            <label>Subclase</label>
+            <input id="manualSubclase" placeholder="Opcional" />
+          </div>
+          <div class="field">
+            <label>Vista</label>
+            <input id="manualVista" placeholder="_2" />
+          </div>
+          <div class="field wide">
+            <label>Medida *</label>
+            <textarea id="manualMedida" placeholder="Ej: Alto 99 cm / Ancho 209 cm / Fondo 93 cm"></textarea>
+          </div>
+        </div>
+        <div class="manual-actions">
+          <button class="btn btn-primary" onclick="saveManualRecord()">Guardar</button>
+        </div>
+      </section>
+
+      <div class="layout">
+        <aside class="list-panel">
+          <div class="panel-title">
+            <span>SKU a trabajar</span>
+            <span id="workCount" class="pill status">0</span>
+          </div>
+          <div id="workList" class="sku-list"></div>
+        </aside>
+        <section class="detail-panel">
+          <div id="workDetail" class="detail-content"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-upload" class="view">
+      <div class="layout">
+        <aside class="list-panel">
+          <div class="panel-title">
+            <span>Tomados</span>
+            <span id="uploadCount" class="pill status">0</span>
+          </div>
+          <div id="uploadList" class="sku-list"></div>
+        </aside>
+        <section class="detail-panel">
+          <div id="uploadDetail" class="detail-content"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-review" class="view">
+      <div class="layout">
+        <aside class="list-panel">
+          <div class="panel-title">
+            <span>Revisión</span>
+            <span id="reviewCount" class="pill status">0</span>
+          </div>
+          <div id="reviewList" class="sku-list"></div>
+        </aside>
+        <section class="detail-panel">
+          <div id="reviewDetail" class="detail-content"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-master" class="view">
+      <section class="master-panel">
+        <div class="panel-title">
+          <span>Master medidas</span>
+          <span id="masterCount" class="pill status">0</span>
+        </div>
+        <div class="master-filter-bar">
+          <input id="masterSearch" class="master-filter-input" placeholder="Buscar SKU, subclase o medida" oninput="renderMaster()" />
+          <button class="btn btn-soft" onclick="exportMasterExcel()">Exportar Excel</button>
+          <button class="btn btn-primary" onclick="downloadAllMaster()">Descargar todo</button>
+          <button class="btn btn-soft" onclick="renderMaster()">Actualizar</button>
+        </div>
+        <div id="masterTableWrap" class="master-table-wrap"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="aiProgressModal" class="image-modal hidden">
+    <div class="image-modal-content" style="max-width:420px;" onclick="event.stopPropagation()">
+      <div class="image-modal-title">Generando medidas IA</div>
+      <div class="ai-progress-wrap">
+        <div class="ai-progress-track"><div id="aiProgressBar" class="ai-progress-bar"></div></div>
+        <div class="ai-progress-meta">
+          <strong id="aiProgressPercent">0%</strong>
+          <span id="aiProgressText">Preparando...</span>
+        </div>
+        <div class="ai-progress-note">No cierres esta pestaña mientras se generan las imágenes.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imageModal" class="image-modal hidden" onclick="closeImageModal(event)">
+    <button class="image-modal-close" onclick="closeImageModal(event)">×</button>
+    <div class="image-modal-content" onclick="event.stopPropagation()">
+      <div id="imageModalTitle" class="image-modal-title"></div>
+      <img id="imageModalImg" src="" alt="Vista ampliada" />
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      deleteDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      getStorage,
+      ref as storageRef,
+      uploadBytes,
+      getBlob,
+      getDownloadURL,
+      deleteObject
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+    const APP_VERSION = "V1.0";
+    const BUSINESS_UNIT = "falabella";
+    const PAIS = "CL";
+    const COLLECTION_NAME = "flujo_ia_medidas";
+    const STORAGE_ROOT = "flujo-ia/medidas";
+    const IA_BACKEND_URL = "https://flujo-ia-auto-backend.vercel.app/api/generate-image";
+    const IA_CONFIRM_PIN = "3400";
+    const IA_BATCH_CONCURRENCY = 2;
+    const IA_SYSTEM_USER = "Gemini IA";
+    const SAVED_USER_KEY = "flujo_ia_current_user";
+    const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
+    const ADMIN_PIN = "0000";
+    const BASE_DOCUMENT_TITLE = "WIDA Medidas";
+    const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+    const ALLOWED_UPLOAD_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif"];
+    const ALLOWED_UPLOAD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    const DEFAULT_VIEW = "_2";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDmzE2YLMHuHNkBEnE3J7GGVA4RFUx3rpw",
+      authDomain: "flujo-ia-auto.firebaseapp.com",
+      projectId: "flujo-ia-auto",
+      storageBucket: "flujo-ia-auto.firebasestorage.app",
+      messagingSenderId: "171949468816",
+      appId: "1:171949468816:web:712d793918792d731b7c15"
+    };
+
+    const STATUS = {
+      PENDIENTE: "Pendiente",
+      GENERANDO_IA: "Generando IA",
+      ERROR_IA: "Error IA",
+      TRABAJO: "En trabajo",
+      REVISION: "En revisión",
+      DESCARGADO: "Descargado",
+      RECHAZADO: "Rechazado"
+    };
+
+    const ROLES = {
+      ADMIN: "admin",
+      RETOCADOR: "retocador",
+      REVISOR: "revisor"
+    };
+
+    const ROLE_LABELS = {
+      [ROLES.ADMIN]: "Admin",
+      [ROLES.RETOCADOR]: "Retocador",
+      [ROLES.REVISOR]: "Revisor"
+    };
+
+    const USER_ROLES = {
+      Pablo: ROLES.ADMIN,
+      Mica: ROLES.ADMIN,
+      Valentina: ROLES.ADMIN,
+      Mylena: ROLES.RETOCADOR,
+      Fernanda: ROLES.RETOCADOR,
+      Fernando: ROLES.RETOCADOR,
+      Marcos: ROLES.RETOCADOR,
+      Sebastian: ROLES.RETOCADOR,
+      Michelle: ROLES.RETOCADOR,
+      Cesar: ROLES.RETOCADOR,
+      Kathe: ROLES.RETOCADOR,
+      Sandra: ROLES.REVISOR,
+      Rossana: ROLES.REVISOR
+    };
+
+    const ROLE_TABS = {
+      [ROLES.ADMIN]: ["work", "upload", "review", "master"],
+      [ROLES.RETOCADOR]: ["work", "upload", "master"],
+      [ROLES.REVISOR]: ["review", "master"]
+    };
+
+    let firebaseReady = false;
+    let db = null;
+    let storage = null;
+    let records = [];
+    let activeTab = "work";
+    let selectedWorkId = "";
+    let selectedUploadId = "";
+    let selectedReviewId = "";
+    let unsubscribeRecords = null;
+    let mediaCache = {};
+    let mediaLoading = {};
+    let aiGenerating = false;
+    let uploadProcessing = false;
+    let reviewProcessing = false;
+
+    function init() {
+      loadTheme();
+      initFirebase();
+      restoreUser();
+      refreshAccessUi();
+      exposeFunctions();
+    }
+
+    function initFirebase() {
+      try {
+        const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("PEGA_AQUI");
+        if (!configured) {
+          firebaseReady = false;
+          document.getElementById("lockMessage").innerHTML = "Reemplaza <strong>firebaseConfig</strong> con los datos de Firebase.";
+          return;
+        }
+
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        storage = getStorage(app);
+        firebaseReady = true;
+        subscribeRecords();
+      } catch (error) {
+        console.error(error);
+        firebaseReady = false;
+        document.getElementById("lockMessage").textContent = "No se pudo iniciar Firebase. Revisa firebaseConfig.";
+      }
+    }
+
+    function subscribeRecords() {
+      if (!firebaseReady) return;
+      if (unsubscribeRecords) unsubscribeRecords();
+
+      unsubscribeRecords = onSnapshot(collection(db, COLLECTION_NAME), snapshot => {
+        records = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+        records.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+        refresh();
+      }, error => {
+        console.error(error);
+        document.getElementById("lockMessage").textContent = "No se pudo leer Firestore. Revisa reglas/permisos.";
+      });
+    }
+
+    function exposeFunctions() {
+      Object.assign(window, {
+        handleUserChange,
+        toggleTheme,
+        setTab,
+        toggleManualPanel,
+        downloadTemplate,
+        handleExcelUpload,
+        saveManualRecord,
+        selectWorkRecord,
+        selectUploadRecord,
+        selectReviewRecord,
+        takeRecord,
+        releaseRecord,
+        deleteRecord,
+        saveWorkEdits,
+        addMeasureRow,
+        removeMeasureRow,
+        selectViewForRecord,
+        refreshMediaForRecord,
+        generateAiForPendingRecords,
+        generateAiOptions,
+        handleWorkedUpload,
+        approveReviewRecord,
+        rejectReviewRecord,
+        renderMaster,
+        exportMasterExcel,
+        downloadAllMaster,
+        downloadRecordImages,
+        openImageModal,
+        closeImageModal
+      });
+    }
+
+    function currentUser() {
+      return document.getElementById("currentUser").value.trim();
+    }
+
+    function getUserRole(user = currentUser()) {
+      return USER_ROLES[user] || "";
+    }
+
+    function isAdminProfile(user = currentUser()) {
+      return getUserRole(user) === ROLES.ADMIN;
+    }
+
+    function isAdminUnlocked(user = currentUser()) {
+      if (!user || !isAdminProfile(user)) return false;
+      return sessionStorage.getItem(ADMIN_UNLOCK_KEY) === user;
+    }
+
+    function isAdmin() {
+      return getUserRole() === ROLES.ADMIN && isAdminUnlocked();
+    }
+
+    function hasActiveUserAccess(user = currentUser()) {
+      const role = getUserRole(user);
+      if (!user || !role) return false;
+      if (role === ROLES.ADMIN && !isAdminUnlocked(user)) return false;
+      return true;
+    }
+
+    function restoreUser() {
+      const savedUser = localStorage.getItem(SAVED_USER_KEY) || "";
+      const select = document.getElementById("currentUser");
+      if (savedUser && [...select.options].some(opt => opt.value === savedUser || opt.textContent === savedUser)) {
+        select.value = savedUser;
+      }
+    }
+
+    function handleUserChange() {
+      const user = currentUser();
+      if (!user) {
+        localStorage.removeItem(SAVED_USER_KEY);
+        refreshAccessUi();
+        return;
+      }
+
+      localStorage.setItem(SAVED_USER_KEY, user);
+
+      if (isAdminProfile(user) && !isAdminUnlocked(user)) {
+        const pin = prompt(`Clave Admin para ${user}:`);
+        if (pin === null || pin.trim() !== ADMIN_PIN) {
+          alert("Clave Admin incorrecta.");
+          document.getElementById("currentUser").value = "";
+          localStorage.removeItem(SAVED_USER_KEY);
+          sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
+          refreshAccessUi();
+          return;
+        }
+        sessionStorage.setItem(ADMIN_UNLOCK_KEY, user);
+      }
+
+      refreshAccessUi();
+      refresh();
+    }
+
+    function refreshAccessUi() {
+      const user = currentUser();
+      const role = getUserRole(user);
+      const enabled = Boolean(user) && firebaseReady && Boolean(role) && hasActiveUserAccess(user);
+      const lockMessage = document.getElementById("lockMessage");
+
+      if (enabled) {
+        lockMessage.classList.add("hidden");
+      } else {
+        lockMessage.classList.remove("hidden");
+        if (!firebaseReady) {
+          lockMessage.textContent = "No se pudo iniciar Firebase. Revisa configuración o conexión.";
+        } else if (!user) {
+          lockMessage.textContent = "Selecciona tu usuario para comenzar.";
+        } else if (!role) {
+          lockMessage.textContent = "Usuario sin permisos.";
+        } else if (role === ROLES.ADMIN && !isAdminUnlocked(user)) {
+          lockMessage.innerHTML = `Admin bloqueado. <button class="btn btn-primary btn-small" onclick="handleUserChange()">Desbloquear</button>`;
+        }
+      }
+
+      document.body.classList.toggle("needs-user", !enabled);
+      updateUserRoleBadge();
+      syncActiveTabUi();
+      renderActionButtonsState();
+    }
+
+    function updateUserRoleBadge() {
+      const badge = document.getElementById("userRoleBadge");
+      const role = getUserRole();
+      if (!currentUser() || !role) {
+        badge.className = "role-badge hidden";
+        badge.textContent = "";
+        return;
+      }
+      badge.className = `role-badge role-${role}`;
+      badge.textContent = role === ROLES.ADMIN && !isAdminUnlocked() ? "Admin bloqueado" : (ROLE_LABELS[role] || role);
+    }
+
+    function roleCanAccessTab(tab) {
+      const role = getUserRole();
+      return Boolean(role && ROLE_TABS[role] && ROLE_TABS[role].includes(tab));
+    }
+
+    function requireAccess() {
+      if (!firebaseReady) {
+        alert("Firebase no está disponible.");
+        return false;
+      }
+      if (!hasActiveUserAccess()) {
+        alert("Selecciona un usuario válido.");
+        return false;
+      }
+      return true;
+    }
+
+    function requireAdmin() {
+      if (!requireAccess()) return false;
+      if (!isAdmin()) {
+        alert("Solo Admin puede hacer esta acción.");
+        return false;
+      }
+      return true;
+    }
+
+    function requireTabAccess(tab) {
+      if (!requireAccess()) return false;
+      if (!roleCanAccessTab(tab)) {
+        alert("Tu usuario no tiene permiso para esta sección.");
+        return false;
+      }
+      return true;
+    }
+
+    function setTab(tab) {
+      if (!roleCanAccessTab(tab)) return;
+      activeTab = tab;
+      syncActiveTabUi();
+      refresh();
+    }
+
+    function syncActiveTabUi() {
+      const allowed = ROLE_TABS[getUserRole()] || [];
+      if (!allowed.includes(activeTab)) activeTab = allowed[0] || "work";
+
+      document.querySelectorAll(".tab").forEach(tab => {
+        const value = tab.dataset.tab;
+        const can = allowed.includes(value) && hasActiveUserAccess();
+        tab.disabled = !can;
+        tab.classList.toggle("active", value === activeTab);
+      });
+
+      document.querySelectorAll(".view").forEach(view => view.classList.remove("active"));
+      const activeView = document.getElementById(`view-${activeTab}`);
+      if (activeView) activeView.classList.add("active");
+    }
+
+    function renderActionButtonsState() {
+      const enabled = hasActiveUserAccess();
+      const workAccess = enabled && roleCanAccessTab("work");
+      ["manualBtn", "loadExcelBtn", "templateBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !workAccess;
+      });
+      renderAutoIaButton();
+    }
+
+    function loadTheme() {
+      const saved = localStorage.getItem("flujo_ia_theme") || "light";
+      document.body.classList.toggle("dark", saved === "dark");
+      document.getElementById("themeBtn").textContent = saved === "dark" ? "☀️" : "🌙";
+    }
+
+    function toggleTheme() {
+      const dark = !document.body.classList.contains("dark");
+      document.body.classList.toggle("dark", dark);
+      localStorage.setItem("flujo_ia_theme", dark ? "dark" : "light");
+      document.getElementById("themeBtn").textContent = dark ? "☀️" : "🌙";
+    }
+
+    function refresh() {
+      refreshAccessUi();
+      renderStats();
+      renderWork();
+      renderUpload();
+      renderReview();
+      renderMaster();
+      renderAutoIaButton();
+      document.title = `${BASE_DOCUMENT_TITLE} · ${records.length}`;
+    }
+
+    function renderStats() {
+      const stats = [
+        ["Pendientes", records.filter(r => r.estado === STATUS.PENDIENTE).length],
+        ["En trabajo", records.filter(r => r.estado === STATUS.TRABAJO).length],
+        ["Revisión", records.filter(r => r.estado === STATUS.REVISION).length],
+        ["Master", getMasterRecords().length],
+        ["Rechazados", records.filter(r => r.estado === STATUS.RECHAZADO || r.estado === STATUS.ERROR_IA).length]
+      ];
+      document.getElementById("stats").innerHTML = stats.map(([label, value]) => `
+        <article class="stat"><small>${escapeHtml(label)}</small><strong>${value}</strong></article>
+      `).join("");
+    }
+
+    function statusClass(status) {
+      const clean = normalizeText(status);
+      if (clean.includes("pendiente")) return "status-pendiente";
+      if (clean.includes("trabajo")) return "status-trabajo";
+      if (clean.includes("revision")) return "status-revision";
+      if (clean.includes("descargado") || clean.includes("aprobado")) return "status-descargado";
+      if (clean.includes("rechazado")) return "status-rechazado";
+      if (clean.includes("error")) return "status-error";
+      if (clean.includes("generando")) return "status-generando";
+      return "status";
+    }
+
+    function statusPill(status) {
+      return `<span class="pill ${statusClass(status)}">${escapeHtml(status || "-")}</span>`;
+    }
+
+    function getRecord(id) {
+      return records.find(record => record.id === id) || null;
+    }
+
+    function recordDocRef(id) {
+      return doc(db, COLLECTION_NAME, id);
+    }
+
+    async function saveRecord(record) {
+      if (!firebaseReady || !record?.id) return;
+      const clean = JSON.parse(JSON.stringify(record));
+      await setDoc(recordDocRef(record.id), clean);
+    }
+
+    function docIdFromSku(sku) {
+      return safeFileName(String(sku || "").trim()).replace(/[^a-zA-Z0-9_-]/g, "_") || uid();
+    }
+
+    function normalizeText(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function normalizeHeader(value) {
+      return normalizeText(value).replace(/[^a-z0-9]/g, "");
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function encodeForInline(value) {
+      return encodeURIComponent(String(value || ""));
+    }
+
+    function safeFileName(value) {
+      return String(value || "archivo")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .replace(/\s+/g, "_");
+    }
+
+    function uid() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+      return "id_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+    }
+
+    function formatDate(value) {
+      if (!value) return "";
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+        const pad = n => String(n).padStart(2, "0");
+        return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch {
+        return "";
+      }
+    }
+
+    function dateStamp() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    }
+
+    function toast(message) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.style.display = "block";
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => { el.style.display = "none"; }, 2800);
+    }
+
+    function normalizeView(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const match = raw.match(/(\d+)/);
+      if (!match) return DEFAULT_VIEW;
+      return `_${Number(match[1])}`;
+    }
+
+    function viewNumber(view) {
+      const match = String(view || "").match(/\d+/);
+      return match ? String(Number(match[0])) : "2";
+    }
+
+    function endpointBySku(sku) {
+      return `https://sellercenter.falabella-marketplace.services/media-service/v1/reference/${encodeURIComponent(sku)}?businessUnit=${BUSINESS_UNIT}&country=${PAIS}`;
+    }
+
+    function buildFalabellaViewUrl(sku, view = DEFAULT_VIEW) {
+      const cleanSku = String(sku || "").trim();
+      const cleanView = viewNumber(view);
+      if (!cleanSku) return "";
+      return `https://media.falabella.com/falabellaCL/${encodeURIComponent(cleanSku)}_${encodeURIComponent(cleanView)}/w=1500,h=1500,fit=pad`;
+    }
+
+    function addFalabellaImageSize(url) {
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+      const noSize = raw.replace("/w=1500,h=1500,fit=pad", "");
+      if (!noSize.includes("media.falabella.com")) return noSize;
+      const noPublic = noSize.replace(/\/public\/?$/, "");
+      if (noPublic.endsWith("/w=1500,h=1500,fit=pad")) return noPublic;
+      return `${noPublic}/w=1500,h=1500,fit=pad`;
+    }
+
+    function isFalabellaMediaUrl(value) {
+      const url = String(value || "");
+      return url.includes("media.falabella.com") || url.includes("imagedelivery.net") || url.includes("/falabellaCL/");
+    }
+
+    function extractViewFromUrl(url) {
+      const clean = String(url || "").replace("/w=1500,h=1500,fit=pad", "");
+      const last = clean.split("/").filter(Boolean).pop() || "";
+      const match = last.match(/_(\d+)$/);
+      return match ? `_${Number(match[1])}` : "";
+    }
+
+    function extractMediaItems(value, found = []) {
+      if (!value) return found;
+
+      if (typeof value === "string") {
+        if (isFalabellaMediaUrl(value)) {
+          found.push({ url: addFalabellaImageSize(value), view: extractViewFromUrl(value), position: null });
+        }
+        return found;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(item => extractMediaItems(item, found));
+        return found;
+      }
+
+      if (typeof value === "object") {
+        const url = value.media_url || value.mediaUrl || value.url || value.src;
+        const positionRaw = value.position ?? value.pos ?? value.order ?? value.sequence ?? null;
+        if (url && isFalabellaMediaUrl(url)) {
+          const position = positionRaw === null || positionRaw === "" ? null : Number(positionRaw);
+          found.push({
+            url: addFalabellaImageSize(url),
+            view: extractViewFromUrl(url),
+            position: Number.isFinite(position) ? position : null
+          });
+        }
+        Object.values(value).forEach(item => extractMediaItems(item, found));
+      }
+
+      return found;
+    }
+
+    function uniqueMediaItems(items) {
+      const seen = new Set();
+      const output = [];
+      items.forEach(item => {
+        const cleanUrl = addFalabellaImageSize(item.url || "");
+        const view = item.view || extractViewFromUrl(cleanUrl);
+        const key = view || cleanUrl.replace("/w=1500,h=1500,fit=pad", "");
+        if (!cleanUrl || seen.has(key)) return;
+        seen.add(key);
+        output.push({ ...item, url: cleanUrl, view });
+      });
+      return output;
+    }
+
+    function mediaPriority(view) {
+      const order = ["_2", "_3", "_1", "_4", "_5", "_6", "_7", "_8", "_9", "_10", "_11", "_12"];
+      const index = order.indexOf(view);
+      return index >= 0 ? index : 999;
+    }
+
+    function sortMediaItems(items) {
+      return [...items].sort((a, b) => {
+        const pa = mediaPriority(a.view);
+        const pb = mediaPriority(b.view);
+        if (pa !== pb) return pa - pb;
+        const na = Number(viewNumber(a.view));
+        const nb = Number(viewNumber(b.view));
+        if (na !== nb) return na - nb;
+        return String(a.url).localeCompare(String(b.url));
+      });
+    }
+
+    function imageExists(url, timeout = 3500) {
+      return new Promise(resolve => {
+        const img = new Image();
+        const timer = setTimeout(() => {
+          img.onload = null;
+          img.onerror = null;
+          resolve(false);
+        }, timeout);
+        img.onload = () => { clearTimeout(timer); resolve(true); };
+        img.onerror = () => { clearTimeout(timer); resolve(false); };
+        img.src = url;
+      });
+    }
+
+    async function getDirectMediaItemsBySku(sku) {
+      const views = ["_2", "_3", "_1", "_4", "_5", "_6", "_7", "_8", "_9", "_10", "_11", "_12"];
+      const checks = await Promise.all(views.map(async view => {
+        const url = buildFalabellaViewUrl(sku, view);
+        const ok = await imageExists(url);
+        return ok ? { url, view, direct: true } : null;
+      }));
+      return checks.filter(Boolean);
+    }
+
+    async function getMediaItemsBySku(sku) {
+      const found = [];
+      try {
+        const response = await fetch(endpointBySku(sku), { cache: "no-store" });
+        if (response.ok) {
+          const json = await response.json();
+          found.push(...extractMediaItems(json));
+        }
+      } catch (error) {
+        console.warn("No se pudo leer endpoint de imágenes:", error);
+      }
+
+      try {
+        found.push(...await getDirectMediaItemsBySku(sku));
+      } catch (error) {
+        console.warn("No se pudo validar vistas directas:", error);
+      }
+
+      return sortMediaItems(uniqueMediaItems(found));
+    }
+
+    function toggleManualPanel() {
+      if (!requireTabAccess("work")) return;
+      document.getElementById("manualPanel").classList.toggle("hidden");
+    }
+
+    function downloadTemplate() {
+      if (!requireTabAccess("work")) return;
+      const rows = [
+        { SKU: "123456789", MEDIDA: "Alto 99 cm / Ancho 209 cm / Fondo 93 cm", SUBCLASE: "SOFA 3 CUERPOS", VISTA: "_2" },
+        { SKU: "987654321", MEDIDA: "Alto 75 cm / Diámetro 120 cm", SUBCLASE: "MESA REDONDA", VISTA: "_2" },
+        { SKU: "456789123", MEDIDA: "Largo lado A 250 cm / Largo lado B 160 cm / Fondo 95 cm", SUBCLASE: "SECCIONAL", VISTA: "_2" }
+      ];
+      const ws = XLSX.utils.json_to_sheet(rows, { header: ["SKU", "MEDIDA", "SUBCLASE", "VISTA"] });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Medidas");
+      XLSX.writeFile(wb, `plantilla_medidas_${dateStamp()}.xlsx`);
+    }
+
+    function getCell(row, headerMap, names) {
+      for (const name of names) {
+        const key = headerMap[normalizeHeader(name)];
+        if (key && row[key] !== undefined && row[key] !== null) return row[key];
+      }
+      return "";
+    }
+
+    async function handleExcelUpload(event) {
+      if (!requireTabAccess("work")) return;
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      try {
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        if (!rows.length) {
+          alert("El archivo está vacío.");
+          return;
+        }
+
+        const first = rows[0] || {};
+        const headerMap = {};
+        Object.keys(first).forEach(key => { headerMap[normalizeHeader(key)] = key; });
+
+        if (!headerMap.sku || !headerMap.medida) {
+          alert("La plantilla debe tener columnas SKU y MEDIDA.");
+          return;
+        }
+
+        const now = new Date().toISOString();
+        let saved = 0;
+        let skipped = 0;
+
+        for (const row of rows) {
+          const sku = String(getCell(row, headerMap, ["SKU"]) || "").trim();
+          const medidaOriginal = String(getCell(row, headerMap, ["MEDIDA"]) || "").trim();
+          const subclase = String(getCell(row, headerMap, ["SUBCLASE"]) || "").trim();
+          const vistaExcel = normalizeView(getCell(row, headerMap, ["VISTA"])) || DEFAULT_VIEW;
+
+          if (!sku || !medidaOriginal) {
+            skipped++;
+            continue;
+          }
+
+          const id = docIdFromSku(sku);
+          const existing = getRecord(id);
+          const record = {
+            ...(existing || {}),
+            id,
+            sku,
+            medidaOriginal,
+            subclase,
+            vistaExcel,
+            vistaSeleccionada: existing?.vistaSeleccionada || vistaExcel || DEFAULT_VIEW,
+            imagenBaseUrl: existing?.imagenBaseUrl || buildFalabellaViewUrl(sku, vistaExcel || DEFAULT_VIEW),
+            medidas: existing?.medidas?.length ? existing.medidas : parseMeasures(medidaOriginal, subclase),
+            estado: existing?.estado || STATUS.PENDIENTE,
+            creadoPor: existing?.creadoPor || currentUser(),
+            createdAt: existing?.createdAt || now,
+            updatedAt: now
+          };
+
+          await saveRecord(record);
+          saved++;
+        }
+
+        toast(`${saved} SKU(s) cargados. ${skipped ? `${skipped} fila(s) omitida(s).` : ""}`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo leer el archivo. Revisa formato Excel/CSV.");
+      }
+    }
+
+    async function saveManualRecord() {
+      if (!requireTabAccess("work")) return;
+      const sku = document.getElementById("manualSku").value.trim();
+      const medidaOriginal = document.getElementById("manualMedida").value.trim();
+      const subclase = document.getElementById("manualSubclase").value.trim();
+      const vistaExcel = normalizeView(document.getElementById("manualVista").value.trim()) || DEFAULT_VIEW;
+
+      if (!sku || !medidaOriginal) {
+        alert("Completa SKU y medida.");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const id = docIdFromSku(sku);
+      const existing = getRecord(id);
+      const record = {
+        ...(existing || {}),
+        id,
+        sku,
+        medidaOriginal,
+        subclase,
+        vistaExcel,
+        vistaSeleccionada: existing?.vistaSeleccionada || vistaExcel,
+        imagenBaseUrl: existing?.imagenBaseUrl || buildFalabellaViewUrl(sku, vistaExcel),
+        medidas: existing?.medidas?.length ? existing.medidas : parseMeasures(medidaOriginal, subclase),
+        estado: existing?.estado || STATUS.PENDIENTE,
+        creadoPor: existing?.creadoPor || currentUser(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
+      };
+
+      await saveRecord(record);
+      ["manualSku", "manualMedida", "manualSubclase", "manualVista"].forEach(id => { document.getElementById(id).value = ""; });
+      document.getElementById("manualPanel").classList.add("hidden");
+      selectedWorkId = record.id;
+      toast(`SKU ${sku} agregado.`);
+    }
+
+    function parseMeasures(text, subclase = "") {
+      const raw = String(text || "").trim();
+      if (!raw) return defaultMeasures(subclase);
+
+      const output = [];
+      const labelMap = {
+        alto: "Alto",
+        altura: "Alto",
+        ancho: "Ancho",
+        largo: "Largo",
+        profundidad: "Profundidad",
+        fondo: "Profundidad",
+        diametro: "Diámetro",
+        ladoa: "Largo lado A",
+        ladob: "Largo lado B"
+      };
+
+      const normalizedRaw = normalizeText(raw);
+      const sideA = raw.match(/lado\s*a[^0-9]*([0-9]+(?:[,.][0-9]+)?\s*(?:cm|mm|m)?)/i);
+      const sideB = raw.match(/lado\s*b[^0-9]*([0-9]+(?:[,.][0-9]+)?\s*(?:cm|mm|m)?)/i);
+      if (sideA) output.push({ label: "Largo lado A", value: cleanMeasureValue(sideA[1]) });
+      if (sideB) output.push({ label: "Largo lado B", value: cleanMeasureValue(sideB[1]) });
+
+      const regex = /(alto|altura|ancho|largo|profundidad|fondo|diámetro|diametro)\s*[:=\-]?\s*([0-9]+(?:[,.][0-9]+)?\s*(?:cm|mm|m)?)/gi;
+      let match;
+      while ((match = regex.exec(raw)) !== null) {
+        const key = normalizeHeader(match[1]);
+        const label = labelMap[key] || match[1];
+        const value = cleanMeasureValue(match[2]);
+        if (value && !output.some(item => normalizeText(item.label) === normalizeText(label))) {
+          output.push({ label, value });
+        }
+      }
+
+      if (!output.length) {
+        const dims = raw.match(/[0-9]+(?:[,.][0-9]+)?\s*(?:cm|mm|m)?/gi) || [];
+        if (dims.length >= 2) {
+          const labels = normalizedRaw.includes("diametro") || normalizedRaw.includes("diámetro")
+            ? ["Diámetro", "Alto"]
+            : ["Alto", "Ancho", "Profundidad"];
+          dims.slice(0, 3).forEach((dim, index) => {
+            output.push({ label: labels[index] || `Medida ${index + 1}`, value: cleanMeasureValue(dim) });
+          });
+        }
+      }
+
+      if (!output.length) output.push({ label: "Medidas", value: raw });
+      return output;
+    }
+
+    function cleanMeasureValue(value) {
+      const clean = String(value || "").trim().replace(/\s+/g, " ");
+      if (!clean) return "";
+      if (/\b(cm|mm|m)\b/i.test(clean)) return clean;
+      if (/^[0-9]+(?:[,.][0-9]+)?$/.test(clean)) return `${clean} cm`;
+      return clean;
+    }
+
+    function defaultMeasures(subclase = "") {
+      const n = normalizeText(subclase);
+      if (n.includes("seccional")) {
+        return [
+          { label: "Alto", value: "" },
+          { label: "Largo lado A", value: "" },
+          { label: "Largo lado B", value: "" },
+          { label: "Profundidad", value: "" }
+        ];
+      }
+      return [
+        { label: "Alto", value: "" },
+        { label: "Ancho", value: "" },
+        { label: "Profundidad", value: "" }
+      ];
+    }
+
+    function recordCanBeWorked(record) {
+      return [STATUS.PENDIENTE, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record?.estado);
+    }
+
+    function canEditRecord(record) {
+      if (!record) return false;
+      if (isAdmin()) return true;
+      return getUserRole() === ROLES.RETOCADOR && (!record.editor || record.editor === currentUser()) && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
+    }
+
+    function getWorkRecords() {
+      const user = currentUser();
+      const role = getUserRole();
+      return records.filter(record => {
+        if ([STATUS.REVISION, STATUS.DESCARGADO].includes(record.estado)) return false;
+        if (role === ROLES.ADMIN) return true;
+        if (role === ROLES.RETOCADOR) {
+          if (record.estado === STATUS.TRABAJO) return record.editor === user;
+          return [STATUS.PENDIENTE, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
+        }
+        return false;
+      });
+    }
+
+    function getUploadRecords() {
+      const user = currentUser();
+      const role = getUserRole();
+      return records.filter(record => {
+        if (record.estado !== STATUS.TRABAJO) return false;
+        if (role === ROLES.ADMIN) return true;
+        return record.editor === user;
+      });
+    }
+
+    function getReviewRecords() {
+      return records.filter(record => record.estado === STATUS.REVISION);
+    }
+
+    function getMasterRecords() {
+      return records.filter(record => record.estado === STATUS.DESCARGADO);
+    }
+
+    function renderSkuItem(record, selectedId, clickFn) {
+      return `
+        <div class="sku-item ${record.id === selectedId ? "active" : ""}" onclick="${clickFn}('${encodeForInline(record.id)}')">
+          <div class="sku-item-top">
+            <div class="sku-code">${escapeHtml(record.sku)}</div>
+            ${statusPill(record.estado)}
+          </div>
+          <div class="sku-brand">
+            ${escapeHtml(record.subclase || "Sin subclase")}<br>
+            Vista: ${escapeHtml(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW)} · ${record.editor ? `Editor: ${escapeHtml(record.editor)}` : "Sin editor"}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWork() {
+      const list = getWorkRecords();
+      document.getElementById("workCount").textContent = list.length;
+      if (!selectedWorkId || !list.some(record => record.id === selectedWorkId)) selectedWorkId = list[0]?.id || "";
+      document.getElementById("workList").innerHTML = list.length
+        ? list.map(record => renderSkuItem(record, selectedWorkId, "selectWorkRecord")).join("")
+        : `<div class="empty">Sin SKU pendientes.</div>`;
+      renderWorkDetail();
+    }
+
+    function selectWorkRecord(idRaw) {
+      selectedWorkId = decodeURIComponent(idRaw || "");
+      renderWork();
+    }
+
+    function renderWorkDetail() {
+      const record = getRecord(selectedWorkId);
+      const el = document.getElementById("workDetail");
+      if (!record) {
+        el.innerHTML = `<div class="empty">Selecciona un SKU.</div>`;
+        return;
+      }
+
+      const editable = canEditRecord(record);
+      const canTake = recordCanBeWorked(record) && (!record.editor || record.editor === currentUser() || isAdmin());
+      const canRelease = record.estado === STATUS.TRABAJO && (record.editor === currentUser() || isAdmin());
+      const canGenerate = canGenerateAiForRecord(record);
+
+      el.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <h2>${escapeHtml(record.sku)}</h2>
+            <small>${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
+          </div>
+          ${statusPill(record.estado)}
+        </div>
+
+        <div class="info-grid">
+          <div class="info-box"><small>Editor</small><span>${escapeHtml(record.editor || "Sin tomar")}</span></div>
+          <div class="info-box"><small>Actualizado</small><span>${escapeHtml(formatDate(record.updatedAt) || "-")}</span></div>
+          <div class="info-box"><small>Creado por</small><span>${escapeHtml(record.creadoPor || "-")}</span></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Datos</strong><br><small>Texto libre del proveedor</small></div>
+            <button class="btn btn-soft btn-small" onclick="saveWorkEdits('${encodeForInline(record.id)}')" ${editable ? "" : "disabled"}>Guardar</button>
+          </div>
+          <div class="manual-grid">
+            <div class="field">
+              <label>Subclase</label>
+              <input id="workSubclase" value="${escapeHtml(record.subclase || "")}" ${editable ? "" : "disabled"} />
+            </div>
+            <div class="field">
+              <label>Vista seleccionada</label>
+              <input id="workVista" value="${escapeHtml(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW)}" ${editable ? "" : "disabled"} />
+            </div>
+            <div class="field">
+              <label>Vista Excel</label>
+              <input value="${escapeHtml(record.vistaExcel || DEFAULT_VIEW)}" disabled />
+            </div>
+            <div class="field wide">
+              <label>Medida original</label>
+              <textarea id="workMedidaOriginal" ${editable ? "" : "disabled"}>${escapeHtml(record.medidaOriginal || "")}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Medidas para IA</strong><br><small>Editables antes de trabajar</small></div>
+            <button class="btn btn-soft btn-small" onclick="addMeasureRow('${encodeForInline(record.id)}')" ${editable ? "" : "disabled"}>+ Medida</button>
+          </div>
+          <div id="measureRows" class="measure-list">
+            ${renderMeasureRows(record.medidas || [], editable)}
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Vistas del SKU</strong><br><small>Se sugiere _2, pero se puede cambiar</small></div>
+            <button class="btn btn-soft btn-small" onclick="refreshMediaForRecord('${encodeForInline(record.id)}')">Buscar vistas</button>
+          </div>
+          <div id="mediaSelector-${escapeHtml(record.id)}">${renderMediaSelectorLoading(record)}</div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Vista previa</strong><br><small>Simulación referencial antes de IA</small></div>
+          </div>
+          ${buildMeasurementPreview(record)}
+        </div>
+
+        ${record.motivoRechazo ? `<div class="section-block"><strong>Motivo rechazo</strong><br><div class="master-muted" style="margin-top:6px;">${escapeHtml(record.motivoRechazo)}</div></div>` : ""}
+
+        <div class="actions">
+          ${canTake ? `<button class="btn btn-primary" onclick="takeRecord('${encodeForInline(record.id)}')">Tomar SKU</button>` : ""}
+          ${canRelease ? `<button class="btn btn-soft" onclick="releaseRecord('${encodeForInline(record.id)}')">Soltar</button>` : ""}
+          ${canGenerate ? `<button class="btn btn-primary" onclick="generateAiOptions('${encodeForInline(record.id)}')">Generar con IA</button>` : ""}
+          ${isAdmin() ? `<button class="btn btn-red" onclick="deleteRecord('${encodeForInline(record.id)}')">Eliminar</button>` : ""}
+        </div>
+      `;
+
+      ensureMediaLoaded(record.id);
+    }
+
+    function renderMeasureRows(measures, editable = true) {
+      const rows = Array.isArray(measures) && measures.length ? measures : defaultMeasures();
+      return rows.map((item, index) => `
+        <div class="measure-row" data-index="${index}">
+          <div>
+            <label>Nombre</label>
+            <input class="measure-label-input" value="${escapeHtml(item.label || "")}" ${editable ? "" : "disabled"} />
+          </div>
+          <div>
+            <label>Valor</label>
+            <input class="measure-value-input" value="${escapeHtml(item.value || "")}" ${editable ? "" : "disabled"} />
+          </div>
+          <button class="btn btn-red btn-small" onclick="removeMeasureRow('${index}')" ${editable ? "" : "disabled"}>Quitar</button>
+        </div>
+      `).join("");
+    }
+
+    function readMeasureRows() {
+      return [...document.querySelectorAll("#measureRows .measure-row")].map(row => {
+        const label = row.querySelector(".measure-label-input")?.value.trim() || "";
+        const value = row.querySelector(".measure-value-input")?.value.trim() || "";
+        return { label, value };
+      }).filter(item => item.label || item.value);
+    }
+
+    function addMeasureRow(recordIdRaw) {
+      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || "");
+      const record = getRecord(recordId);
+      if (!record || !canEditRecord(record)) return;
+      const current = readMeasureRows();
+      current.push({ label: "", value: "" });
+      const container = document.getElementById("measureRows");
+      if (container) container.innerHTML = renderMeasureRows(current, true);
+    }
+
+    function removeMeasureRow(indexRaw) {
+      const index = Number(indexRaw);
+      const current = readMeasureRows();
+      current.splice(index, 1);
+      const container = document.getElementById("measureRows");
+      if (container) container.innerHTML = renderMeasureRows(current.length ? current : [{ label: "", value: "" }], true);
+    }
+
+    async function saveWorkEdits(recordIdRaw) {
+      if (!requireTabAccess("work")) return;
+      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || "");
+      const record = getRecord(recordId);
+      if (!record || !canEditRecord(record)) return;
+
+      const subclase = document.getElementById("workSubclase")?.value.trim() || "";
+      const medidaOriginal = document.getElementById("workMedidaOriginal")?.value.trim() || "";
+      const vistaSeleccionada = normalizeView(document.getElementById("workVista")?.value.trim()) || DEFAULT_VIEW;
+      const measures = readMeasureRows();
+
+      record.subclase = subclase;
+      record.medidaOriginal = medidaOriginal;
+      record.vistaSeleccionada = vistaSeleccionada;
+      record.imagenBaseUrl = record.imagenBaseUrl || buildFalabellaViewUrl(record.sku, vistaSeleccionada);
+      record.medidas = measures.length ? measures : parseMeasures(medidaOriginal, subclase);
+      record.updatedAt = new Date().toISOString();
+      record.updatedBy = currentUser();
+      await saveRecord(record);
+      toast("Cambios guardados.");
+    }
+
+    function renderMediaSelectorLoading(record) {
+      const cached = mediaCache[record.sku];
+      if (cached?.length) return renderMediaSelector(record, cached);
+      if (mediaLoading[record.sku]) return `<div class="empty" style="padding:18px;">Buscando vistas...</div>`;
+      return `<div class="empty" style="padding:18px;">Cargando miniaturas...</div>`;
+    }
+
+    async function ensureMediaLoaded(recordId) {
+      const record = getRecord(recordId);
+      if (!record || mediaCache[record.sku] || mediaLoading[record.sku]) {
+        renderMediaSelectorInto(record);
+        return;
+      }
+      await refreshMediaForRecord(record.id, true);
+    }
+
+    function renderMediaSelectorInto(record) {
+      if (!record) return;
+      const el = document.getElementById(`mediaSelector-${record.id}`);
+      if (!el) return;
+      const items = mediaCache[record.sku] || [];
+      el.innerHTML = items.length ? renderMediaSelector(record, items) : renderMediaFallback(record);
+    }
+
+    async function refreshMediaForRecord(recordIdRaw, silent = false) {
+      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+
+      mediaLoading[record.sku] = true;
+      renderMediaSelectorInto(record);
+
+      try {
+        const items = await getMediaItemsBySku(record.sku);
+        mediaCache[record.sku] = items;
+
+        if (items.length) {
+          const preferred = normalizeView(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW) || DEFAULT_VIEW;
+          const chosen = items.find(item => item.view === preferred) || items.find(item => item.view === DEFAULT_VIEW) || items[0];
+          if (chosen && (!record.imagenBaseUrl || record.imagenBaseUrl.includes("media.falabella.com"))) {
+            record.vistaSeleccionada = chosen.view || preferred;
+            record.imagenBaseUrl = chosen.url;
+            record.updatedAt = new Date().toISOString();
+            await saveRecord(record);
+          }
+        }
+
+        if (!silent) toast(items.length ? `${items.length} vista(s) encontrada(s).` : "Sin vistas encontradas.");
+      } catch (error) {
+        console.error(error);
+        if (!silent) alert("No se pudieron buscar vistas del SKU.");
+      } finally {
+        mediaLoading[record.sku] = false;
+        renderMediaSelectorInto(getRecord(recordId));
+      }
+    }
+
+    function renderMediaFallback(record) {
+      const view = normalizeView(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW) || DEFAULT_VIEW;
+      const url = buildFalabellaViewUrl(record.sku, view);
+      return `
+        <div class="media-grid">
+          <div class="media-item active" onclick="selectViewForRecord('${encodeForInline(record.id)}', '${encodeForInline(view)}', '${encodeForInline(url)}')">
+            <img src="${escapeHtml(url)}" alt="${escapeHtml(view)}" onerror="this.style.display='none'">
+            <strong>${escapeHtml(view)}</strong>
+            <small>Directa</small>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMediaSelector(record, items) {
+      const selected = normalizeView(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW) || DEFAULT_VIEW;
+      return `
+        <div class="media-grid">
+          ${items.map(item => `
+            <div class="media-item ${item.view === selected ? "active" : ""}" onclick="selectViewForRecord('${encodeForInline(record.id)}', '${encodeForInline(item.view || DEFAULT_VIEW)}', '${encodeForInline(item.url)}')">
+              <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.view || "Vista")}" loading="lazy">
+              <strong>${escapeHtml(item.view || "Vista")}</strong>
+              <small>${item.view === DEFAULT_VIEW ? "Sugerida" : "Disponible"}</small>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    async function selectViewForRecord(recordIdRaw, viewRaw, urlRaw) {
+      if (!requireTabAccess("work")) return;
+      const recordId = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(recordId);
+      if (!record || !canEditRecord(record)) return;
+
+      const view = normalizeView(decodeURIComponent(viewRaw || "")) || DEFAULT_VIEW;
+      const url = decodeURIComponent(urlRaw || "") || buildFalabellaViewUrl(record.sku, view);
+      record.vistaSeleccionada = view;
+      record.imagenBaseUrl = addFalabellaImageSize(url);
+      record.updatedAt = new Date().toISOString();
+      record.updatedBy = currentUser();
+      await saveRecord(record);
+      toast(`Vista ${view} seleccionada.`);
+    }
+
+    function getMeasureByKeywords(record, keywords) {
+      const measures = Array.isArray(record.medidas) ? record.medidas : [];
+      return measures.find(item => keywords.some(key => normalizeText(item.label).includes(key))) || null;
+    }
+
+    function getDisplayMeasure(item) {
+      if (!item) return "";
+      if (item.label && item.value) return `${item.value}`;
+      return item.value || item.label || "";
+    }
+
+    function buildMeasurementPreview(record) {
+      const imageUrl = record.imagenBaseUrl || buildFalabellaViewUrl(record.sku, record.vistaSeleccionada || DEFAULT_VIEW);
+      const height = getMeasureByKeywords(record, ["alto", "altura"]);
+      const width = getMeasureByKeywords(record, ["ancho", "largo"]);
+      const depth = getMeasureByKeywords(record, ["profundidad", "fondo"]);
+      const measures = Array.isArray(record.medidas) && record.medidas.length ? record.medidas : parseMeasures(record.medidaOriginal, record.subclase);
+
+      return `
+        <div class="preview-wrap">
+          <div class="measure-preview">
+            ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(record.sku)}">` : ""}
+            ${height ? `<div class="measure-line line-height"></div><div class="measure-label label-height">${escapeHtml(getDisplayMeasure(height))}</div>` : ""}
+            ${width ? `<div class="measure-line line-width"></div><div class="measure-label label-width">${escapeHtml(getDisplayMeasure(width))}</div>` : ""}
+            ${depth ? `<div class="measure-line line-depth"></div><div class="measure-label label-depth">${escapeHtml(getDisplayMeasure(depth))}</div>` : ""}
+          </div>
+          <div class="measure-summary">
+            ${measures.map(item => `
+              <div class="measure-summary-item">
+                <strong>${escapeHtml(item.label || "Medida")}</strong>
+                <span>${escapeHtml(item.value || "-")}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    async function takeRecord(recordIdRaw) {
+      if (!requireTabAccess("work")) return;
+      const id = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(id);
+      if (!record) return;
+      if (!canEditRecord(record)) return;
+
+      const now = new Date().toISOString();
+      record.estado = STATUS.TRABAJO;
+      record.editor = currentUser();
+      record.takenAt = now;
+      record.motivoRechazo = "";
+      record.updatedAt = now;
+      await saveRecord(record);
+      selectedUploadId = record.id;
+      activeTab = "upload";
+      toast(`SKU ${record.sku} tomado.`);
+      refresh();
+    }
+
+    async function releaseRecord(recordIdRaw) {
+      if (!requireTabAccess("work")) return;
+      const id = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(id);
+      if (!record) return;
+      if (!isAdmin() && record.editor !== currentUser()) return;
+      record.estado = STATUS.PENDIENTE;
+      record.editor = "";
+      record.takenAt = "";
+      record.updatedAt = new Date().toISOString();
+      record.updatedBy = currentUser();
+      await saveRecord(record);
+      toast("SKU liberado.");
+    }
+
+    async function deleteRecord(recordIdRaw) {
+      if (!requireAdmin()) return;
+      const id = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(id);
+      if (!record) return;
+      const ok = confirm(`¿Eliminar permanentemente el SKU ${record.sku} de Medidas?`);
+      if (!ok) return;
+      await deleteImagesFromStorage(record);
+      await deleteDoc(recordDocRef(id));
+      selectedWorkId = "";
+      selectedUploadId = "";
+      selectedReviewId = "";
+      toast("SKU eliminado.");
+    }
+
+    function renderUpload() {
+      const list = getUploadRecords();
+      document.getElementById("uploadCount").textContent = list.length;
+      if (!selectedUploadId || !list.some(record => record.id === selectedUploadId)) selectedUploadId = list[0]?.id || "";
+      document.getElementById("uploadList").innerHTML = list.length
+        ? list.map(record => renderSkuItem(record, selectedUploadId, "selectUploadRecord")).join("")
+        : `<div class="empty">Sin SKU tomados.</div>`;
+      renderUploadDetail();
+    }
+
+    function selectUploadRecord(idRaw) {
+      selectedUploadId = decodeURIComponent(idRaw || "");
+      renderUpload();
+    }
+
+    function renderUploadDetail() {
+      const record = getRecord(selectedUploadId);
+      const el = document.getElementById("uploadDetail");
+      if (!record) {
+        el.innerHTML = `<div class="empty">Selecciona un SKU tomado.</div>`;
+        return;
+      }
+
+      el.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <h2>${escapeHtml(record.sku)}</h2>
+            <small>${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
+          </div>
+          ${statusPill(record.estado)}
+        </div>
+
+        <div class="section-block">
+          <div class="section-head"><div><strong>Medidas</strong><br><small>Revisa antes de subir</small></div></div>
+          ${buildMeasurementPreview(record)}
+        </div>
+
+        <label class="upload-box" for="workedInput">
+          <strong>Subir imagen trabajada</strong>
+          <small>JPG, PNG, WEBP o AVIF. Máximo 10 MB por imagen.</small>
+        </label>
+        <input id="workedInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
+
+        <div class="actions">
+          ${isAdmin() ? `<button class="btn btn-primary" onclick="generateAiOptions('${encodeForInline(record.id)}')">Generar con IA</button>` : ""}
+          <button class="btn btn-soft" onclick="setTab('work')">Volver</button>
+        </div>
+      `;
+    }
+
+    function fileExtension(name = "") {
+      const clean = String(name || "");
+      const parts = clean.split(".");
+      return parts.length > 1 ? parts.pop().toLowerCase() : "";
+    }
+
+    function uploadContentType(file) {
+      const type = String(file.type || "").toLowerCase();
+      if (ALLOWED_UPLOAD_MIME_TYPES.includes(type)) return type;
+      const ext = fileExtension(file.name);
+      const byExt = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
+      return byExt[ext] || "application/octet-stream";
+    }
+
+    function validateUploadFile(file) {
+      const ext = fileExtension(file.name);
+      const type = uploadContentType(file);
+      if (!ALLOWED_UPLOAD_EXTENSIONS.includes(ext) && !ALLOWED_UPLOAD_MIME_TYPES.includes(type)) return "Formato no permitido";
+      if (file.size > MAX_UPLOAD_SIZE_BYTES) return "Archivo supera 10 MB";
+      return "";
+    }
+
+    async function handleWorkedUpload(event, recordIdRaw) {
+      if (!requireTabAccess("upload")) return;
+      const recordId = decodeURIComponent(recordIdRaw || selectedUploadId || "");
+      const record = getRecord(recordId);
+      const files = [...(event.target.files || [])];
+      event.target.value = "";
+      if (!record || !files.length) return;
+      if (uploadProcessing) {
+        alert("Ya hay una subida en proceso.");
+        return;
+      }
+
+      const invalid = files.map(file => [file, validateUploadFile(file)]).filter(([, err]) => err);
+      if (invalid.length) {
+        alert(invalid.map(([file, err]) => `${file.name}: ${err}`).join("\n"));
+        return;
+      }
+
+      uploadProcessing = true;
+      try {
+        const now = new Date().toISOString();
+        if (getRecordImages(record).length) {
+          archiveActiveImagesToHistory(record, "replaced", { reason: "Reemplazadas por nueva subida", archivedAt: now, archivedBy: currentUser() });
+          record.generatedImages = [];
+        }
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const imageId = `${record.id}_${Date.now()}_${i}_${Math.random().toString(16).slice(2)}`;
+          const cleanName = safeFileName(file.name);
+          const path = `${STORAGE_ROOT}/trabajado/${record.id}/${imageId}_${cleanName}`;
+          const contentType = uploadContentType(file);
+          await uploadBytes(storageRef(storage, path), file, { contentType });
+
+          if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+          record.generatedImages.push({
+            id: imageId,
+            name: file.name,
+            path,
+            size: file.size,
+            type: contentType,
+            matchedSku: record.sku,
+            uploadedAt: now,
+            uploadedBy: currentUser(),
+            generatedByAi: false,
+            reviewStatus: "pending"
+          });
+        }
+
+        record.estado = STATUS.REVISION;
+        record.uploadedAt = now;
+        record.updatedAt = now;
+        record.motivoRechazo = "";
+        await saveRecord(record);
+        activeTab = "review";
+        selectedReviewId = record.id;
+        toast("Imagen subida a revisión.");
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo subir la imagen a Storage.");
+      } finally {
+        uploadProcessing = false;
+      }
+    }
+
+    function renderReview() {
+      const list = getReviewRecords();
+      document.getElementById("reviewCount").textContent = list.length;
+      if (!selectedReviewId || !list.some(record => record.id === selectedReviewId)) selectedReviewId = list[0]?.id || "";
+      document.getElementById("reviewList").innerHTML = list.length
+        ? list.map(record => renderSkuItem(record, selectedReviewId, "selectReviewRecord")).join("")
+        : `<div class="empty">Sin SKU en revisión.</div>`;
+      renderReviewDetail();
+    }
+
+    function selectReviewRecord(idRaw) {
+      selectedReviewId = decodeURIComponent(idRaw || "");
+      renderReview();
+    }
+
+    function renderReviewDetail() {
+      const record = getRecord(selectedReviewId);
+      const el = document.getElementById("reviewDetail");
+      if (!record) {
+        el.innerHTML = `<div class="empty">Selecciona un SKU en revisión.</div>`;
+        return;
+      }
+
+      const images = getRecordImages(record);
+      const measures = Array.isArray(record.medidas) ? record.medidas : [];
+
+      el.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <h2>${escapeHtml(record.sku)}</h2>
+            <small>${escapeHtml(record.subclase || "Sin subclase")} · Editor: ${escapeHtml(record.editor || "-")}</small>
+          </div>
+          ${statusPill(record.estado)}
+        </div>
+
+        <div class="compare-grid">
+          <aside class="review-measures-big">
+            <h3>Medidas</h3>
+            ${measures.map(item => `
+              <div class="big-line">
+                <small>${escapeHtml(item.label || "Medida")}</small>
+                <strong>${escapeHtml(item.value || "-")}</strong>
+              </div>
+            `).join("") || `<div class="big-line"><small>Medida original</small><strong>${escapeHtml(record.medidaOriginal || "-")}</strong></div>`}
+            <div class="master-muted">Vista: ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</div>
+          </aside>
+
+          <section>
+            <div id="reviewImages-${escapeHtml(record.id)}" class="review-image-grid">
+              ${images.length ? `<div class="empty" style="padding:18px;">Cargando imagen...</div>` : `<div class="empty">Sin imagen para revisar.</div>`}
+            </div>
+
+            <div class="reject-box">
+              <label>Motivo rechazo</label>
+              <textarea id="rejectReason-${escapeHtml(record.id)}" placeholder="Escribe el motivo si se rechaza"></textarea>
+            </div>
+
+            <div class="actions" style="margin-top:12px;">
+              <button class="btn btn-primary" onclick="approveReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Aprobar y descargar</button>
+              <button class="btn btn-red" onclick="rejectReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Rechazar</button>
+            </div>
+          </section>
+        </div>
+      `;
+
+      renderReviewImagesAsync(record.id);
+    }
+
+    async function renderReviewImagesAsync(recordId) {
+      const record = getRecord(recordId);
+      const container = document.getElementById(`reviewImages-${recordId}`);
+      if (!record || !container) return;
+      const images = getRecordImages(record);
+      const cards = [];
+
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        let url = image.url || "";
+        if (!url && image.path) {
+          try { url = await getDownloadURL(storageRef(storage, image.path)); } catch (error) { console.warn(error); }
+        }
+        cards.push(`
+          <article class="review-image-card">
+            <div class="review-image-head">
+              <label style="display:flex;align-items:center;gap:7px;">
+                <input class="review-image-check" type="checkbox" value="${escapeHtml(image.id || image.path || String(i))}" checked />
+                Seleccionar
+              </label>
+              <span>${escapeHtml(image.name || `Imagen ${i + 1}`)}</span>
+            </div>
+            ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || record.sku)}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(image.name || record.sku)}')">` : `<div class="empty">Imagen no disponible</div>`}
+          </article>
+        `);
+      }
+
+      container.innerHTML = cards.join("") || `<div class="empty">Sin imagen para revisar.</div>`;
+    }
+
+    function getSelectedReviewImageIds() {
+      return [...document.querySelectorAll(".review-image-check:checked")].map(input => input.value);
+    }
+
+    async function approveReviewRecord(recordIdRaw) {
+      if (!requireTabAccess("review")) return;
+      if (reviewProcessing) return;
+      const recordId = decodeURIComponent(recordIdRaw || selectedReviewId || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+      const images = getRecordImages(record);
+      const selectedIds = getSelectedReviewImageIds();
+      const selected = images.filter((image, index) => selectedIds.includes(image.id || image.path || String(index)));
+      if (!selected.length) {
+        alert("Selecciona al menos una imagen.");
+        return;
+      }
+
+      const ok = confirm(`¿Aprobar y descargar ${selected.length} imagen(es) del SKU ${record.sku}?`);
+      if (!ok) return;
+
+      reviewProcessing = true;
+      try {
+        const zip = new JSZip();
+        const folder = zip.folder(safeFileName(record.sku));
+        let downloaded = 0;
+
+        for (let i = 0; i < selected.length; i++) {
+          const image = selected[i];
+          if (!image.path) continue;
+          const blob = await getBlob(storageRef(storage, image.path));
+          const ext = fileExtension(image.name || image.path) || "png";
+          folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+          downloaded++;
+        }
+
+        if (!downloaded) {
+          alert("No se pudo descargar ninguna imagen.");
+          return;
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, `${safeFileName(record.sku)}_medidas_${dateStamp()}.zip`);
+
+        const now = new Date().toISOString();
+        const selectedKeys = new Set(selected.map((image, index) => image.id || image.path || String(index)));
+        const rejected = images.filter((image, index) => !selectedKeys.has(image.id || image.path || String(index)));
+
+        archiveImagesToHistory(record, selected, record.iaGenerated ? "approved_ia" : "approved", { result: "approved", reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
+        archiveImagesToHistory(record, rejected, "discarded", { result: "discarded", reason: "Alternativa no seleccionada", reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
+
+        record.estado = STATUS.DESCARGADO;
+        record.revisor = currentUser();
+        record.reviewedAt = now;
+        record.downloadedAt = now;
+        record.updatedAt = now;
+        record.motivoRechazo = "";
+        record.generatedImages = [];
+        await saveRecord(record);
+        toast("Imagen aprobada y descargada.");
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo aprobar/descargar. Revisa Storage.");
+      } finally {
+        reviewProcessing = false;
+      }
+    }
+
+    async function rejectReviewRecord(recordIdRaw) {
+      if (!requireTabAccess("review")) return;
+      if (reviewProcessing) return;
+      const recordId = decodeURIComponent(recordIdRaw || selectedReviewId || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+      const reason = document.getElementById(`rejectReason-${record.id}`)?.value.trim() || "";
+      if (!reason) {
+        alert("Escribe el motivo del rechazo.");
+        return;
+      }
+      const ok = confirm(`¿Rechazar el SKU ${record.sku}?`);
+      if (!ok) return;
+
+      reviewProcessing = true;
+      try {
+        const now = new Date().toISOString();
+        archiveActiveImagesToHistory(record, record.iaGenerated ? "rejected_ia" : "rejected", { result: "rejected", reason, reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
+        record.estado = STATUS.RECHAZADO;
+        record.motivoRechazo = reason;
+        record.revisor = currentUser();
+        record.reviewedAt = now;
+        record.updatedAt = now;
+        record.editor = "";
+        record.generatedImages = [];
+        await saveRecord(record);
+        toast("SKU rechazado.");
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo rechazar.");
+      } finally {
+        reviewProcessing = false;
+      }
+    }
+
+    function getRecordImages(record) {
+      return Array.isArray(record?.generatedImages) ? record.generatedImages.filter(Boolean) : [];
+    }
+
+    function getRecordImageHistory(record) {
+      return Array.isArray(record?.imageHistory) ? record.imageHistory.filter(Boolean) : [];
+    }
+
+    function archiveImagesToHistory(record, imagesInput = [], reviewStatus = "archived", options = {}) {
+      if (!Array.isArray(record.imageHistory)) record.imageHistory = [];
+      const now = new Date().toISOString();
+      const items = (imagesInput || []).filter(Boolean).map(image => ({
+        ...image,
+        reviewStatus,
+        result: options.result || reviewStatus,
+        reason: options.reason || image.rejectionReason || "",
+        reviewedAt: options.reviewedAt || now,
+        archivedAt: options.archivedAt || now,
+        archivedBy: options.archivedBy || currentUser()
+      }));
+      record.imageHistory.push(...items);
+      return items;
+    }
+
+    function archiveActiveImagesToHistory(record, reviewStatus = "archived", options = {}) {
+      return archiveImagesToHistory(record, getRecordImages(record), reviewStatus, options);
+    }
+
+    function getMasterDownloadImages(record) {
+      const all = [
+        ...getRecordImageHistory(record),
+        ...getRecordImages(record)
+      ].filter(image => image && image.path);
+
+      const seen = new Set();
+      return all.filter((image, index) => {
+        const result = normalizeText(image.result || image.reviewStatus || "");
+        const approved = result.includes("approved") || result.includes("aprob");
+        if (!approved && record.estado !== STATUS.DESCARGADO) return false;
+        const key = image.path || image.id || String(index);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    async function deleteImagesFromStorage(record) {
+      const images = [...getRecordImages(record), ...getRecordImageHistory(record)];
+      const seen = new Set();
+      for (const image of images) {
+        if (!image.path || seen.has(image.path)) continue;
+        seen.add(image.path);
+        try { await deleteObject(storageRef(storage, image.path)); } catch (error) { console.warn(error); }
+      }
+    }
+
+    function renderMaster() {
+      const search = normalizeText(document.getElementById("masterSearch")?.value || "");
+      const list = getMasterRecords().filter(record => {
+        if (!search) return true;
+        return [record.sku, record.subclase, record.medidaOriginal, record.editor, record.revisor]
+          .some(value => normalizeText(value).includes(search));
+      });
+      document.getElementById("masterCount").textContent = list.length;
+
+      if (!list.length) {
+        document.getElementById("masterTableWrap").innerHTML = `<div class="empty">Sin registros en master.</div>`;
+        return;
+      }
+
+      document.getElementById("masterTableWrap").innerHTML = `
+        <table class="master-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Medidas</th>
+              <th>Subclase</th>
+              <th>Vista</th>
+              <th>Editor</th>
+              <th>Revisor</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(record => `
+              <tr>
+                <td><div class="master-sku">${escapeHtml(record.sku)}</div>${statusPill(record.estado)}</td>
+                <td>${renderMasterMeasures(record)}</td>
+                <td>${escapeHtml(record.subclase || "-")}</td>
+                <td>${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</td>
+                <td>${escapeHtml(record.editor || "-")}</td>
+                <td>${escapeHtml(record.revisor || "-")}</td>
+                <td><div class="master-muted">${escapeHtml(formatDate(record.downloadedAt || record.reviewedAt || record.updatedAt) || "-")}</div></td>
+                <td><button class="btn btn-primary btn-small" onclick="downloadRecordImages('${encodeForInline(record.id)}')">Descargar</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderMasterMeasures(record) {
+      const measures = Array.isArray(record.medidas) && record.medidas.length ? record.medidas : parseMeasures(record.medidaOriginal, record.subclase);
+      return measures.map(item => `<div><strong>${escapeHtml(item.label || "Medida")}:</strong> ${escapeHtml(item.value || "-")}</div>`).join("");
+    }
+
+    function exportMasterExcel() {
+      if (!requireTabAccess("master")) return;
+      const rows = getMasterRecords().map(record => ({
+        SKU: record.sku,
+        MEDIDA_ORIGINAL: record.medidaOriginal || "",
+        MEDIDAS_IA: (record.medidas || []).map(item => `${item.label}: ${item.value}`).join(" | "),
+        SUBCLASE: record.subclase || "",
+        VISTA: record.vistaSeleccionada || "",
+        ESTADO: record.estado || "",
+        EDITOR: record.editor || "",
+        REVISOR: record.revisor || "",
+        FECHA_DESCARGA: record.downloadedAt || ""
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Master medidas");
+      XLSX.writeFile(wb, `master_medidas_${dateStamp()}.xlsx`);
+    }
+
+    async function downloadRecordImages(recordIdRaw) {
+      if (!requireTabAccess("master")) return;
+      const recordId = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+      const images = getMasterDownloadImages(record);
+      if (!images.length) {
+        alert("Este SKU no tiene imágenes aprobadas disponibles.");
+        return;
+      }
+
+      const zip = new JSZip();
+      const folder = zip.folder(safeFileName(record.sku));
+      let total = 0;
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        try {
+          const blob = await getBlob(storageRef(storage, image.path));
+          const ext = fileExtension(image.name || image.path) || "png";
+          folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+          total++;
+        } catch (error) {
+          console.warn("No se pudo descargar imagen:", image.path, error);
+        }
+      }
+
+      if (!total) {
+        alert("No se pudo descargar ninguna imagen.");
+        return;
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, `${safeFileName(record.sku)}_medidas_${dateStamp()}.zip`);
+    }
+
+    async function downloadAllMaster() {
+      if (!requireTabAccess("master")) return;
+      const list = getMasterRecords();
+      if (!list.length) {
+        alert("No hay registros en master.");
+        return;
+      }
+
+      const zip = new JSZip();
+      let total = 0;
+      for (const record of list) {
+        const images = getMasterDownloadImages(record);
+        if (!images.length) continue;
+        const folder = zip.folder(safeFileName(record.sku));
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          try {
+            const blob = await getBlob(storageRef(storage, image.path));
+            const ext = fileExtension(image.name || image.path) || "png";
+            folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+            total++;
+          } catch (error) {
+            console.warn("No se pudo descargar imagen:", image.path, error);
+          }
+        }
+      }
+
+      if (!total) {
+        alert("No se pudo descargar ninguna imagen aprobada.");
+        return;
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, `master_medidas_${dateStamp()}.zip`);
+    }
+
+    function getPendingAutoIaRecords() {
+      return records.filter(record => canGenerateAiForRecord(record));
+    }
+
+    function canGenerateAiForRecord(record) {
+      if (!record || !isAdmin()) return false;
+      if ([STATUS.PENDIENTE, STATUS.ERROR_IA, STATUS.RECHAZADO].includes(record.estado)) return true;
+      if (record.estado === STATUS.TRABAJO) return true;
+      return false;
+    }
+
+    function renderAutoIaButton() {
+      const btn = document.getElementById("autoIaBtn");
+      if (!btn) return;
+      const candidates = isAdmin() ? getPendingAutoIaRecords() : [];
+      btn.classList.toggle("hidden", !isAdmin());
+      btn.disabled = !isAdmin() || aiGenerating || !candidates.length;
+      btn.textContent = candidates.length ? `Generar IA (${candidates.length})` : "Generar IA";
+    }
+
+    async function generateAiForPendingRecords() {
+      if (!requireAdmin()) return;
+      const candidates = getPendingAutoIaRecords();
+      if (!candidates.length) {
+        alert("No hay SKU disponibles para IA.");
+        return;
+      }
+
+      const confirmed = confirm(`Se generará 1 imagen con medidas para ${candidates.length} SKU(s).\n\n¿Enviar ahora a Gemini?`);
+      if (!confirmed) return;
+
+      const pin = prompt("Ingresa clave IA para confirmar generación automática:");
+      if (pin === null) return;
+      if (pin.trim() !== IA_CONFIRM_PIN) {
+        alert("Clave IA incorrecta.");
+        return;
+      }
+
+      await runAiBatchGeneration(candidates.map(record => record.id), pin.trim());
+    }
+
+    async function generateAiOptions(recordIdRaw) {
+      if (!requireAdmin()) return;
+      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || selectedUploadId || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+      if (!canGenerateAiForRecord(record)) {
+        alert("Este SKU no está disponible para IA.");
+        return;
+      }
+
+      const confirmed = confirm(`Se generará 1 imagen con medidas para el SKU ${record.sku}.\n\n¿Continuar?`);
+      if (!confirmed) return;
+
+      const pin = prompt("Ingresa clave IA para generar:");
+      if (pin === null) return;
+      if (pin.trim() !== IA_CONFIRM_PIN) {
+        alert("Clave IA incorrecta.");
+        return;
+      }
+
+      await runAiBatchGeneration([record.id], pin.trim());
+    }
+
+    async function runAiBatchGeneration(ids, iaPin) {
+      if (aiGenerating) {
+        alert("Ya hay una generación IA en curso.");
+        return;
+      }
+
+      const uniqueIds = [...new Set(ids || [])].filter(Boolean);
+      const candidates = uniqueIds.map(id => getRecord(id)).filter(record => record && canGenerateAiForRecord(record));
+      if (!candidates.length) return;
+
+      aiGenerating = true;
+      openAiProgressModal();
+      let completed = 0;
+      const total = candidates.length;
+
+      try {
+        await runWithConcurrency(candidates, IA_BATCH_CONCURRENCY, async record => {
+          const percent = Math.max(1, Math.round((completed / total) * 95));
+          updateAiProgress(percent, `Generando ${record.sku}...`);
+          await generateAiForRecord(record.id, iaPin);
+          completed++;
+          updateAiProgress(Math.min(99, Math.round((completed / total) * 100)), `${completed}/${total} SKU(s)`);
+        });
+        updateAiProgress(100, "Listo.");
+        setTimeout(closeAiProgressModal, 900);
+        toast("Generación IA finalizada.");
+      } catch (error) {
+        console.error(error);
+        closeAiProgressModal();
+        alert(error.message || "No se pudo completar la generación IA.");
+      } finally {
+        aiGenerating = false;
+        renderAutoIaButton();
+      }
+    }
+
+    async function runWithConcurrency(items, limit, worker) {
+      let index = 0;
+      async function next() {
+        while (index < items.length) {
+          const current = items[index++];
+          await worker(current);
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => next()));
+    }
+
+    async function generateAiForRecord(recordId, iaPin) {
+      const record = getRecord(recordId);
+      if (!record) return;
+      const now = new Date().toISOString();
+
+      try {
+        record.estado = STATUS.GENERANDO_IA;
+        record.iaStartedAt = now;
+        record.iaError = "";
+        record.updatedAt = now;
+        await saveRecord(record);
+
+        const result = await callAiGeneration(record, iaPin);
+        const file = base64ToFile(result.base64, `${safeFileName(record.sku)}_MEDIDAS.png`, result.mimeType || "image/png");
+        await uploadAiGeneratedFileToReview(record, file);
+      } catch (error) {
+        console.error(`Error IA ${record.sku}:`, error);
+        const failed = getRecord(recordId) || record;
+        failed.estado = STATUS.ERROR_IA;
+        failed.iaError = error.message || "Error IA";
+        failed.updatedAt = new Date().toISOString();
+        await saveRecord(failed);
+      }
+    }
+
+    async function callAiGeneration(record, iaPin) {
+      if (IA_BACKEND_URL.includes("TU-PROYECTO")) throw new Error("Falta configurar IA_BACKEND_URL.");
+      const pos1Url = record.imagenBaseUrl || buildFalabellaViewUrl(record.sku, record.vistaSeleccionada || DEFAULT_VIEW);
+      const response = await fetch(IA_BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user: currentUser(),
+          adminPin: iaPin,
+          sku: record.sku,
+          prompt: buildMedidasPrompt(record),
+          pos1Url,
+          optionNumber: 1,
+          styleReferenceUrls: []
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo generar la imagen IA.");
+      if (!data.base64) throw new Error("El backend no devolvió una imagen válida.");
+      return data;
+    }
+
+    function buildMedidasPrompt(record) {
+      const measures = (record.medidas || []).map(item => `- ${item.label}: ${item.value}`).join("\n");
+      return `Crear una imagen ecommerce limpia del producto con líneas y textos de medidas, usando la imagen base entregada como referencia principal.
+
+Datos:
+SKU: ${record.sku}
+Subclase: ${record.subclase || "Sin subclase"}
+Vista seleccionada: ${record.vistaSeleccionada || DEFAULT_VIEW}
+Medida original del proveedor: ${record.medidaOriginal || ""}
+
+Medidas exactas que deben aparecer:
+${measures || record.medidaOriginal || "Sin medidas estructuradas"}
+
+Instrucciones visuales:
+- Mantener el producto real, su color, forma, materialidad y proporciones.
+- No ambientar ni cambiar el fondo de forma decorativa.
+- Agregar líneas de medida delgadas, ordenadas y de color gris oscuro.
+- Agregar textos de medida grandes, claros y legibles en gris.
+- Usar estilo similar a ecommerce retail: fondo blanco o muy limpio, producto centrado.
+- Para Alto usar línea vertical.
+- Para Ancho, Largo o Diámetro usar línea horizontal frontal o inferior.
+- Para Profundidad o Fondo usar línea lateral o diagonal inferior.
+- No inventar medidas nuevas.
+- No cambiar los números, unidades ni etiquetas entregadas.
+- Resultado final profesional, limpio y apto para publicación.`;
+    }
+
+    function base64ToFile(base64, fileName, mimeType = "image/png") {
+      const binary = atob(base64);
+      const length = binary.length;
+      const bytes = new Uint8Array(length);
+      for (let i = 0; i < length; i++) bytes[i] = binary.charCodeAt(i);
+      return new File([bytes], fileName, { type: mimeType, lastModified: Date.now() });
+    }
+
+    async function uploadAiGeneratedFileToReview(record, file) {
+      const current = getRecord(record.id) || record;
+      const now = new Date().toISOString();
+      if (getRecordImages(current).length) {
+        archiveActiveImagesToHistory(current, "replaced_before_ia", { reason: "Reemplazadas por nueva generación IA", archivedAt: now, archivedBy: currentUser() });
+        current.generatedImages = [];
+      }
+
+      const imageId = `${current.id}_ia_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const path = `${STORAGE_ROOT}/trabajado/${current.id}/${imageId}_${safeFileName(file.name)}`;
+      const contentType = uploadContentType(file);
+      await uploadBytes(storageRef(storage, path), file, { contentType });
+
+      current.generatedImages = [{
+        id: imageId,
+        name: file.name,
+        path,
+        size: file.size,
+        type: contentType,
+        matchedSku: current.sku,
+        uploadedAt: now,
+        uploadedBy: IA_SYSTEM_USER,
+        generatedByAi: true,
+        reviewStatus: "pending"
+      }];
+      current.estado = STATUS.REVISION;
+      current.editor = IA_SYSTEM_USER;
+      current.iaGenerated = true;
+      current.iaFinishedAt = now;
+      current.iaError = "";
+      current.uploadedAt = now;
+      current.updatedAt = now;
+      await saveRecord(current);
+    }
+
+    function openAiProgressModal() {
+      const modal = document.getElementById("aiProgressModal");
+      modal.classList.remove("hidden");
+      updateAiProgress(0, "Preparando...");
+    }
+
+    function closeAiProgressModal() {
+      document.getElementById("aiProgressModal").classList.add("hidden");
+    }
+
+    function updateAiProgress(percent, text) {
+      const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+      document.getElementById("aiProgressBar").style.width = `${safePercent}%`;
+      document.getElementById("aiProgressPercent").textContent = `${safePercent}%`;
+      document.getElementById("aiProgressText").textContent = text || "Procesando...";
+    }
+
+    function openImageModal(urlRaw, titleRaw) {
+      const url = decodeURIComponent(String(urlRaw || ""));
+      const title = decodeURIComponent(String(titleRaw || ""));
+      if (!url) return;
+      document.getElementById("imageModalTitle").textContent = title || "Vista ampliada";
+      document.getElementById("imageModalImg").src = url;
+      document.getElementById("imageModal").classList.remove("hidden");
+    }
+
+    function closeImageModal(event) {
+      if (event) event.stopPropagation();
+      document.getElementById("imageModal").classList.add("hidden");
+      document.getElementById("imageModalImg").src = "";
+    }
+
+    init();
+  </script>
+</body>
+</html>
