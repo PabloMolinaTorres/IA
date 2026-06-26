@@ -529,53 +529,39 @@
       padding: 7%;
     }
 
-    .measure-line {
+    .measure-svg {
       position: absolute;
-      background: rgba(75, 85, 99, .95);
+      inset: 0;
+      width: 100%;
+      height: 100%;
       z-index: 2;
+      pointer-events: none;
     }
 
-    .measure-line:before, .measure-line:after {
-      content: "";
-      position: absolute;
-      background: rgba(75, 85, 99, .95);
+    .measure-svg line {
+      stroke: rgba(75, 85, 99, .95);
+      stroke-width: 2;
+      stroke-linecap: round;
     }
-
-    .line-height { left: 8%; top: 22%; width: 2px; height: 58%; }
-    .line-height:before, .line-height:after { left: -6px; width: 14px; height: 2px; }
-    .line-height:before { top: 0; } .line-height:after { bottom: 0; }
-
-    .line-width { left: 22%; bottom: 10%; width: 62%; height: 2px; }
-    .line-width:before, .line-width:after { top: -6px; width: 2px; height: 14px; }
-    .line-width:before { left: 0; } .line-width:after { right: 0; }
-
-    .line-depth {
-      left: 14%;
-      bottom: 16%;
-      width: 28%;
-      height: 2px;
-      transform: rotate(17deg);
-      transform-origin: left center;
-    }
-    .line-depth:before, .line-depth:after { top: -6px; width: 2px; height: 14px; }
-    .line-depth:before { left: 0; } .line-depth:after { right: 0; }
 
     .measure-label {
       position: absolute;
       z-index: 3;
       color: #6b7280;
-      background: rgba(255, 255, 255, .80);
+      background: rgba(255, 255, 255, .92);
       border-radius: 999px;
-      padding: 4px 8px;
+      padding: 4px 9px;
       font-weight: 900;
-      font-size: 18px;
+      font-size: 17px;
       line-height: 1;
       white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      pointer-events: none;
     }
 
-    .label-height { left: 3%; top: 48%; transform: translateY(-50%); }
-    .label-width { left: 52%; bottom: 4%; transform: translateX(-50%); }
-    .label-depth { left: 12%; bottom: 4%; }
+    .label-height { left: 4%; top: 49%; transform: translateY(-50%); }
+    .label-width { left: 58%; bottom: 5%; transform: translateX(-50%); }
+    .label-depth { left: 14%; bottom: 4%; }
 
     .measure-summary {
       display: grid;
@@ -1020,6 +1006,7 @@
     const IA_CONFIRM_PIN = "3400";
     const IA_BATCH_CONCURRENCY = 2;
     const IA_SYSTEM_USER = "Gemini IA";
+    const IA_MEASURE_REFERENCE_URLS = ["./referencia_medidas.webp"];
     const SAVED_USER_KEY = "flujo_ia_current_user";
     const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
     const ADMIN_PIN = "0000";
@@ -2186,17 +2173,37 @@
     function buildMeasurementPreview(record) {
       const imageUrl = record.imagenBaseUrl || buildFalabellaViewUrl(record.sku, record.vistaSeleccionada || DEFAULT_VIEW);
       const height = getMeasureByKeywords(record, ["alto", "altura"]);
-      const width = getMeasureByKeywords(record, ["ancho", "largo"]);
+      const width = getMeasureByKeywords(record, ["ancho", "largo", "diámetro", "diametro"]);
       const depth = getMeasureByKeywords(record, ["profundidad", "fondo"]);
       const measures = Array.isArray(record.medidas) && record.medidas.length ? record.medidas : parseMeasures(record.medidaOriginal, record.subclase);
+
+      const svg = `
+        <svg class="measure-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          ${height ? `
+            <line x1="9" y1="22" x2="9" y2="74"></line>
+            <line x1="7.8" y1="22" x2="10.8" y2="22"></line>
+            <line x1="7.8" y1="74" x2="10.8" y2="74"></line>
+          ` : ""}
+          ${width ? `
+            <line x1="24" y1="90" x2="84" y2="90"></line>
+            <line x1="24" y1="88.5" x2="24" y2="91.5"></line>
+            <line x1="84" y1="88.5" x2="84" y2="91.5"></line>
+          ` : ""}
+          ${depth ? `
+            <line x1="15" y1="84" x2="28" y2="88"></line>
+            <line x1="14.3" y1="82.8" x2="15.7" y2="85.2"></line>
+            <line x1="27.3" y1="86.8" x2="28.7" y2="89.2"></line>
+          ` : ""}
+        </svg>`;
 
       return `
         <div class="preview-wrap">
           <div class="measure-preview">
             ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(record.sku)}">` : ""}
-            ${height ? `<div class="measure-line line-height"></div><div class="measure-label label-height">${escapeHtml(getDisplayMeasure(height))}</div>` : ""}
-            ${width ? `<div class="measure-line line-width"></div><div class="measure-label label-width">${escapeHtml(getDisplayMeasure(width))}</div>` : ""}
-            ${depth ? `<div class="measure-line line-depth"></div><div class="measure-label label-depth">${escapeHtml(getDisplayMeasure(depth))}</div>` : ""}
+            ${svg}
+            ${height ? `<div class="measure-label label-height">${escapeHtml(getDisplayMeasure(height))}</div>` : ""}
+            ${width ? `<div class="measure-label label-width">${escapeHtml(getDisplayMeasure(width))}</div>` : ""}
+            ${depth ? `<div class="measure-label label-depth">${escapeHtml(getDisplayMeasure(depth))}</div>` : ""}
           </div>
           <div class="measure-summary">
             ${measures.map(item => `
@@ -2944,7 +2951,7 @@
           prompt: buildMedidasPrompt(record),
           pos1Url,
           optionNumber: 1,
-          styleReferenceUrls: []
+          styleReferenceUrls: IA_MEASURE_REFERENCE_URLS
         })
       });
 
@@ -2956,7 +2963,7 @@
 
     function buildMedidasPrompt(record) {
       const measures = (record.medidas || []).map(item => `- ${item.label}: ${item.value}`).join("\n");
-      return `Crear una imagen ecommerce limpia del producto con líneas y textos de medidas, usando la imagen base entregada como referencia principal.
+      return `Edita la imagen del producto agregando una gráfica de medidas clara, limpia y profesional, usando la imagen base entregada como referencia principal. Además, toma como referencia visual una imagen guía de estilo para la disposición de líneas, etiquetas y estética de medidas.
 
 Datos:
 SKU: ${record.sku}
@@ -2967,18 +2974,44 @@ Medida original del proveedor: ${record.medidaOriginal || ""}
 Medidas exactas que deben aparecer:
 ${measures || record.medidaOriginal || "Sin medidas estructuradas"}
 
-Instrucciones visuales:
-- Mantener el producto real, su color, forma, materialidad y proporciones.
-- No ambientar ni cambiar el fondo de forma decorativa.
-- Agregar líneas de medida delgadas, ordenadas y de color gris oscuro.
-- Agregar textos de medida grandes, claros y legibles en gris.
-- Usar estilo similar a ecommerce retail: fondo blanco o muy limpio, producto centrado.
-- Para Alto usar línea vertical.
+Instrucciones principales:
+- Mantén el producto original sin deformarlo.
+- No cambies el color, textura, forma, materialidad ni proporciones del producto.
+- Respeta completamente el fondo original de la imagen.
+- No reemplaces el fondo.
+- No elimines sombras existentes.
+- No limpies el fondo.
+- No aísles el producto.
+- No agregues fondos decorativos.
+- No recortes partes importantes del producto.
+- No agregues objetos nuevos.
+- No inventes medidas.
+- Usa únicamente las medidas entregadas.
+- No cambies los números, unidades ni etiquetas entregadas.
+
+Estilo visual:
+- Toma como referencia de estilo la imagen guía entregada junto con la solicitud.
+- Replica su criterio visual general: líneas limpias, composición ordenada y textos discretos.
+- Agrega solamente líneas de medida y textos.
+- Usa líneas finas, rectas, ordenadas y de color gris oscuro o negro suave.
+- Agrega pequeños topes o flechas en los extremos de cada línea.
+- Usa textos de medida grandes, claros, legibles y bien alineados.
+- No tapes zonas importantes del producto.
+- Distribuye las medidas alrededor del producto de forma clara.
+- Si el fondo tiene elementos visibles, integra las medidas sin alterar la escena.
+- La imagen final debe verse como una ficha técnica retail.
+
+Regla de ubicación:
+- Para Alto usar línea vertical al costado del producto.
 - Para Ancho, Largo o Diámetro usar línea horizontal frontal o inferior.
-- Para Profundidad o Fondo usar línea lateral o diagonal inferior.
-- No inventar medidas nuevas.
-- No cambiar los números, unidades ni etiquetas entregadas.
-- Resultado final profesional, limpio y apto para publicación.`;
+- Para Profundidad o Fondo usar línea lateral o diagonal si la vista lo permite.
+- Si hay más de 3 medidas, distribuirlas sin sobrecargar la imagen.
+- Si una medida no calza visualmente, ubicarla como etiqueta técnica cerca del producto sin inventar perspectiva.
+
+Resultado final:
+- Generar una imagen cuadrada, profesional y ordenada.
+- Conservar el fondo original.
+- Agregar únicamente la gráfica de medidas sobre la imagen existente.`;
     }
 
     function base64ToFile(base64, fileName, mimeType = "image/png") {
