@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>WIDA Protocolo 2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./falabella.png" type="image/png" />
+  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --card2: #f1f3f5;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --greenFalabella: #8fca00;
+      --greenDark: #6fa800;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .07);
+      --radius: 18px;
+    }
+
+    body.dark {
+      --bg: #060606;
+      --card: #111111;
+      --card2: #1b1b1b;
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --border: #2a2a2a;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; font-family: 'Lato', sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 3px 18px rgba(0, 0, 0, .04);
+    }
+
+    .topbar-inner {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--greenFalabella), #c9f000);
+      color: white;
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(143, 202, 0, .25);
+    }
+
+    .brand h1 { margin: 0; font-size: 19px; font-weight: 900; line-height: 1.1; }
+    .brand small { display: block; color: var(--muted); margin-top: 2px; font-size: 12px; }
+    .version {
+      display: inline-flex;
+      margin-left: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(143, 202, 0, .13);
+      color: var(--greenDark);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .module-nav { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .module-link {
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      font-weight: 900;
+      font-size: 13px;
+    }
+
+    .module-link.active {
+      background: var(--greenFalabella);
+      border-color: var(--greenFalabella);
+      color: white;
+    }
+
+    .theme-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .main { max-width: 1450px; margin: 0 auto; padding: 22px; }
+    .placeholder {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 26px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .placeholder h2 { margin: 0; font-size: 24px; }
+    .placeholder p { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.45; }
+
+    @media (max-width: 1000px) {
+      .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .top-right { width: 100%; justify-content: space-between; }
+      .module-nav { width: 100%; }
+      .module-link { flex: 1; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo-box">IA</div>
+        <div>
+          <h1>WIDA Protocolo 2 <span class="version">V0.1</span></h1>
+          <small>Falabella Chile</small>
+        </div>
+      </div>
+      <div class="top-right">
+        <nav class="module-nav" aria-label="Módulos">
+          <a class="module-link" href="./index.html">Flujo IA</a>
+          <a class="module-link" href="./medidas.html">Medidas</a>
+          <a class="module-link active" href="./protocolo2.html">Protocolo 2</a>
+        </nav>
+        <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="placeholder">
+      <h2>Protocolo 2</h2>
+      <p>Módulo reservado para desarrollo.</p>
+    </section>
+  </main>
+
+  <script>
+    const THEME_KEY = 'flujo_ia_theme';
+
+    function loadTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'dark') document.body.classList.add('dark');
+      document.getElementById('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem(THEME_KEY, document.body.classList.contains('dark') ? 'dark' : 'light');
+      document.getElementById('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    }
+
+    loadTheme();
+  </script>
+</body>
+</html>
