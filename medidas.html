@@ -805,7 +805,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>WIDA Medidas <span class="version">V1.0</span></h1>
+          <h1>WIDA Medidas <span class="version">V1.1</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -998,7 +998,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0";
+    const APP_VERSION = "V1.1";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_medidas";
@@ -1431,8 +1431,14 @@
     function safeFileName(value) {
       return String(value || "archivo")
         .trim()
-        .replace(/[\\/:*?"<>|]/g, "-")
+        .replace(/[\/:*?"<>|]/g, "-")
         .replace(/\s+/g, "_");
+    }
+
+    function medidasOutputName(record, ext = "png", index = 0) {
+      const base = `${safeFileName(record?.sku || "SKU")}_11`;
+      const suffix = Number(index) > 0 ? `_${String(Number(index) + 1).padStart(2, "0")}` : "";
+      return `${base}${suffix}.${ext}`;
     }
 
     function uid() {
@@ -2535,7 +2541,7 @@
           if (!image.path) continue;
           const blob = await getBlob(storageRef(storage, image.path));
           const ext = fileExtension(image.name || image.path) || "png";
-          folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+          folder.file(medidasOutputName(record, ext, i), blob);
           downloaded++;
         }
 
@@ -2751,7 +2757,7 @@
         try {
           const blob = await getBlob(storageRef(storage, image.path));
           const ext = fileExtension(image.name || image.path) || "png";
-          folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+          folder.file(medidasOutputName(record, ext, i), blob);
           total++;
         } catch (error) {
           console.warn("No se pudo descargar imagen:", image.path, error);
@@ -2786,7 +2792,7 @@
           try {
             const blob = await getBlob(storageRef(storage, image.path));
             const ext = fileExtension(image.name || image.path) || "png";
-            folder.file(`${safeFileName(record.sku)}_MEDIDAS_${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+            folder.file(medidasOutputName(record, ext, i), blob);
             total++;
           } catch (error) {
             console.warn("No se pudo descargar imagen:", image.path, error);
@@ -2927,7 +2933,7 @@
         await saveRecord(record);
 
         const result = await callAiGeneration(record, iaPin);
-        const file = base64ToFile(result.base64, `${safeFileName(record.sku)}_MEDIDAS.png`, result.mimeType || "image/png");
+        const file = base64ToFile(result.base64, medidasOutputName(record, "png", 0), result.mimeType || "image/png");
         await uploadAiGeneratedFileToReview(record, file);
       } catch (error) {
         console.error(`Error IA ${record.sku}:`, error);
@@ -2963,7 +2969,13 @@
     }
 
     function buildMedidasPrompt(record) {
-      const measures = (record.medidas || []).map(item => `- ${item.label}: ${item.value}`).join("\n");
+      const measuresList = Array.isArray(record.medidas) && record.medidas.length
+        ? record.medidas
+        : parseMeasures(record.medidaOriginal, record.subclase);
+
+      const measuresForLogic = measuresList.map(item => `- ${item.label}: ${item.value}`).join("\n");
+      const renderOnlyValues = measuresList.map(item => `- ${item.value}`).join("\n");
+
       return `Edita la imagen del producto agregando una gráfica de medidas clara, limpia y profesional, usando la imagen base entregada como referencia principal. Además, toma como referencia visual una imagen guía de estilo para la disposición de líneas, etiquetas y estética de medidas.
 
 Datos:
@@ -2972,8 +2984,11 @@ Subclase: ${record.subclase || "Sin subclase"}
 Vista seleccionada: ${record.vistaSeleccionada || DEFAULT_VIEW}
 Medida original del proveedor: ${record.medidaOriginal || ""}
 
-Medidas exactas que deben aparecer:
-${measures || record.medidaOriginal || "Sin medidas estructuradas"}
+Medidas para interpretación interna:
+${measuresForLogic || record.medidaOriginal || "Sin medidas estructuradas"}
+
+Textos exactos que sí deben aparecer escritos en la imagen:
+${renderOnlyValues || record.medidaOriginal || "Sin medidas estructuradas"}
 
 Instrucciones principales:
 - Mantén el producto original sin deformarlo.
@@ -2988,7 +3003,10 @@ Instrucciones principales:
 - No agregues objetos nuevos.
 - No inventes medidas.
 - Usa únicamente las medidas entregadas.
-- No cambies los números, unidades ni etiquetas entregadas.
+- No cambies los números, unidades ni valores entregados.
+- IMPORTANTE: no escribas los nombres de las medidas en la imagen final.
+- IMPORTANTE: en la imagen final debe verse solo el valor con su unidad, por ejemplo "30 cm", "38 cm", "33 cm".
+- IMPORTANTE: no escribir textos como "Alto: 30 cm", "Ancho: 38 cm" o "Profundidad: 33 cm".
 
 Estilo visual:
 - Toma como referencia de estilo la imagen guía entregada junto con la solicitud.
@@ -3012,7 +3030,8 @@ Regla de ubicación:
 Resultado final:
 - Generar una imagen cuadrada, profesional y ordenada.
 - Conservar el fondo original.
-- Agregar únicamente la gráfica de medidas sobre la imagen existente.`;
+- Agregar únicamente la gráfica de medidas sobre la imagen existente.
+- Mostrar solo los valores de las medidas con la unidad, sin los nombres de las medidas.`;
     }
 
     function base64ToFile(base64, fileName, mimeType = "image/png") {
