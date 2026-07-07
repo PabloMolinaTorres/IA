@@ -810,7 +810,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>WIDA Medidas <span class="version">V1.2</span></h1>
+          <h1>WIDA Medidas <span class="version">V1.3</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -3012,6 +3012,9 @@ Instrucciones principales:
 - IMPORTANTE: no escribas los nombres de las medidas en la imagen final.
 - IMPORTANTE: en la imagen final debe verse solo el valor con su unidad, por ejemplo "30 cm", "38 cm", "33 cm".
 - IMPORTANTE: no escribir textos como "Alto: 30 cm", "Ancho: 38 cm" o "Profundidad: 33 cm".
+- IMPORTANTE: las líneas, las bolitas de los extremos y los textos nunca deben tocar el producto.
+- IMPORTANTE: las líneas, bolitas y etiquetas deben quedar completamente fuera del contorno o silueta del producto.
+- IMPORTANTE: no dibujar líneas sobre la superficie del producto ni atravesar el producto.
 
 Estilo visual:
 - Toma como referencia de estilo la imagen guía entregada junto con la solicitud.
@@ -3027,18 +3030,21 @@ Estilo visual:
 - La imagen final debe verse como una ficha técnica retail.
 
 Regla de ubicación:
-- Para Alto usar línea vertical al costado del producto.
-- Para Ancho, Largo o Diámetro usar línea horizontal frontal o inferior.
-- Para Profundidad o Fondo usar línea lateral o diagonal si la vista lo permite.
+- Para Alto usar línea vertical por fuera del producto, al costado externo, dejando un espacio visible entre la línea y el producto.
+- Para Ancho, Largo o Diámetro usar línea por fuera del producto, idealmente en la parte inferior, dejando un espacio visible entre la línea y el producto.
+- Para Profundidad o Fondo usar línea por fuera del producto, en un lateral o diagonal inferior, sin tocar el producto.
+- Todas las medidas deben ir en zonas vacías del fondo, no encima del producto.
+- Si hace falta, usar más margen exterior o extender ligeramente el canvas con el mismo fondo original para crear espacio libre alrededor del producto.
 - Si hay más de 3 medidas, distribuirlas sin sobrecargar la imagen.
-- Si una medida no calza visualmente, ubicarla como etiqueta técnica cerca del producto sin inventar perspectiva.
+- Si una medida no calza visualmente, ubicarla como etiqueta técnica en una zona libre del fondo, sin tocar el producto ni inventar perspectiva.
 
 Resultado final:
 - Generar una imagen cuadrada, profesional y ordenada.
 - Conservar el fondo original.
 - Agregar únicamente la gráfica de medidas sobre la imagen existente.
 - Mostrar solo los valores de las medidas con la unidad, sin los nombres de las medidas.
-- Estandarizar todas las líneas de medida usando pequeñas bolas redondas en ambos extremos.`;
+- Estandarizar todas las líneas de medida usando pequeñas bolas redondas en ambos extremos.
+- Asegurar que ninguna línea, bolita o texto toque el producto.`;
     }
 
     function base64ToFile(base64, fileName, mimeType = "image/png") {
