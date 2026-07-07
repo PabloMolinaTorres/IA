@@ -695,6 +695,97 @@
     .master-sku { font-weight: 900; font-size: 14px; }
     .master-muted { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
+    .list-search-bar {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .history-modal-content {
+      width: min(96vw, 1220px);
+      height: min(92vh, 860px);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 18px;
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .history-modal-title {
+      color: var(--text);
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .history-modal-body {
+      overflow-y: auto;
+      display: grid;
+      gap: 14px;
+      padding-right: 4px;
+    }
+
+    .history-folder {
+      border: 1px solid var(--border);
+      background: var(--card2);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .history-folder-head {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-weight: 900;
+    }
+
+    .history-grid {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    .history-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .history-card img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      background: white;
+      border-radius: 10px;
+      cursor: zoom-in;
+      border: 1px solid var(--border);
+    }
+
+    .history-card strong {
+      font-size: 12px;
+      word-break: break-word;
+    }
+
+    .history-card small {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
     .image-modal {
       position: fixed;
       inset: 0;
@@ -810,7 +901,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>WIDA Medidas <span class="version">V1.3</span></h1>
+          <h1>WIDA Medidas <span class="version">V1.4</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -819,6 +910,7 @@
         <nav class="module-nav" aria-label="Módulos">
           <a class="module-link" href="./index.html">Flujo IA</a>
           <a class="module-link active" href="./medidas.html">Medidas</a>
+          <a class="module-link" href="./protocolo2.html">Protocolo 2</a>
         </nav>
 
         <select id="currentUser" class="user-select" onchange="handleUserChange()">
@@ -905,6 +997,9 @@
             <span>SKU a trabajar</span>
             <span id="workCount" class="pill status">0</span>
           </div>
+          <div class="list-search-bar">
+            <input id="workSearch" class="master-filter-input" placeholder="Buscar SKU(s): 123 456,789" oninput="renderWork()" />
+          </div>
           <div id="workList" class="sku-list"></div>
         </aside>
         <section class="detail-panel">
@@ -950,7 +1045,7 @@
           <span id="masterCount" class="pill status">0</span>
         </div>
         <div class="master-filter-bar">
-          <input id="masterSearch" class="master-filter-input" placeholder="Buscar SKU, subclase o medida" oninput="renderMaster()" />
+          <input id="masterSearch" class="master-filter-input" placeholder="Buscar SKU(s), subclase o medida" oninput="renderMaster()" />
           <button class="btn btn-soft" onclick="exportMasterExcel()">Exportar Excel</button>
           <button class="btn btn-primary" onclick="downloadAllMaster()">Descargar todo</button>
           <button class="btn btn-soft" onclick="renderMaster()">Actualizar</button>
@@ -973,6 +1068,17 @@
         </div>
         <div class="ai-progress-note">No cierres esta pestaña mientras se generan las imágenes.</div>
       </div>
+    </div>
+  </div>
+
+  <div id="historyModal" class="image-modal hidden" onclick="closeHistoryModal(event)">
+    <button class="image-modal-close" onclick="closeHistoryModal(event)">×</button>
+    <div class="history-modal-content" onclick="event.stopPropagation()">
+      <div class="history-modal-title">
+        <div id="historyModalTitle">Historial</div>
+        <button class="btn btn-soft btn-small" onclick="closeHistoryModal(event)">Cerrar</button>
+      </div>
+      <div id="historyModalBody" class="history-modal-body"></div>
     </div>
   </div>
 
@@ -1003,7 +1109,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1";
+    const APP_VERSION = "V1.4";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_medidas";
@@ -1162,6 +1268,8 @@
         exportMasterExcel,
         downloadAllMaster,
         downloadRecordImages,
+        openMasterHistory,
+        closeHistoryModal,
         openImageModal,
         closeImageModal
       });
@@ -1851,11 +1959,37 @@
       return getUserRole() === ROLES.RETOCADOR && (!record.editor || record.editor === currentUser()) && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
     }
 
+    function tokenizeSkuSearch(value = "") {
+      return String(value || "")
+        .split(/[\s,;]+/g)
+        .map(item => normalizeText(item))
+        .filter(Boolean);
+    }
+
+    function recordMatchesSkuTokens(record, rawSearch = "") {
+      const tokens = tokenizeSkuSearch(rawSearch);
+      if (!tokens.length) return true;
+      const sku = normalizeText(record?.sku || "");
+      return tokens.some(token => sku.includes(token));
+    }
+
+    function recordMatchesMasterSearch(record, rawSearch = "") {
+      const search = String(rawSearch || "").trim();
+      if (!search) return true;
+      const tokens = tokenizeSkuSearch(search);
+      if (tokens.length > 1) return recordMatchesSkuTokens(record, search);
+      const normalized = normalizeText(search);
+      return [record.sku, record.subclase, record.medidaOriginal, record.editor, record.revisor]
+        .some(value => normalizeText(value).includes(normalized));
+    }
+
     function getWorkRecords() {
       const user = currentUser();
       const role = getUserRole();
+      const workSearch = document.getElementById("workSearch")?.value || "";
       return records.filter(record => {
         if ([STATUS.REVISION, STATUS.DESCARGADO].includes(record.estado)) return false;
+        if (!recordMatchesSkuTokens(record, workSearch)) return false;
         if (role === ROLES.ADMIN) return true;
         if (role === ROLES.RETOCADOR) {
           if (record.estado === STATUS.TRABAJO) return record.editor === user;
@@ -2674,12 +2808,8 @@
     }
 
     function renderMaster() {
-      const search = normalizeText(document.getElementById("masterSearch")?.value || "");
-      const list = getMasterRecords().filter(record => {
-        if (!search) return true;
-        return [record.sku, record.subclase, record.medidaOriginal, record.editor, record.revisor]
-          .some(value => normalizeText(value).includes(search));
-      });
+      const search = document.getElementById("masterSearch")?.value || "";
+      const list = getMasterRecords().filter(record => recordMatchesMasterSearch(record, search));
       document.getElementById("masterCount").textContent = list.length;
 
       if (!list.length) {
@@ -2711,7 +2841,12 @@
                 <td>${escapeHtml(record.editor || "-")}</td>
                 <td>${escapeHtml(record.revisor || "-")}</td>
                 <td><div class="master-muted">${escapeHtml(formatDate(record.downloadedAt || record.reviewedAt || record.updatedAt) || "-")}</div></td>
-                <td><button class="btn btn-primary btn-small" onclick="downloadRecordImages('${encodeForInline(record.id)}')">Descargar</button></td>
+                <td>
+                  <div class="actions">
+                    <button class="btn btn-soft btn-small" onclick="openMasterHistory('${encodeForInline(record.id)}')">Ver historial</button>
+                    <button class="btn btn-primary btn-small" onclick="downloadRecordImages('${encodeForInline(record.id)}')">Descargar</button>
+                  </div>
+                </td>
               </tr>
             `).join("")}
           </tbody>
@@ -2722,6 +2857,87 @@
     function renderMasterMeasures(record) {
       const measures = Array.isArray(record.medidas) && record.medidas.length ? record.medidas : parseMeasures(record.medidaOriginal, record.subclase);
       return measures.map(item => `<div><strong>${escapeHtml(item.label || "Medida")}:</strong> ${escapeHtml(item.value || "-")}</div>`).join("");
+    }
+
+    function historyGroupKey(image = {}) {
+      const result = normalizeText(image.result || image.reviewStatus || "");
+      if (result.includes("approved") || result.includes("aprob")) return "accepted";
+      if (result.includes("discard") || result.includes("descart")) return "discarded";
+      if (result.includes("reject") || result.includes("rechaz")) return "rejected";
+      return "other";
+    }
+
+    function historyGroupLabel(key) {
+      return {
+        accepted: "Aceptado",
+        discarded: "Descartado",
+        rejected: "Rechazado",
+        other: "Otros"
+      }[key] || "Otros";
+    }
+
+    async function buildHistoryCard(image, index) {
+      let url = "";
+      try {
+        url = image.path ? await getDownloadURL(storageRef(storage, image.path)) : (image.url || "");
+      } catch (error) {
+        console.warn("No se pudo cargar historial:", image.path, error);
+      }
+
+      const title = image.name || image.path || `Imagen ${index + 1}`;
+      const date = formatDate(image.reviewedAt || image.archivedAt || image.uploadedAt || image.generatedAt || "") || "-";
+      const user = image.archivedBy || image.uploadedBy || image.generatedBy || "-";
+      const reason = image.reason || image.rejectionReason || "";
+
+      return `
+        <div class="history-card">
+          ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(title)}" onclick="openImageModal('${encodeURIComponent(url)}', '${encodeURIComponent(title)}')">` : `<div class="empty">Sin vista</div>`}
+          <strong>${escapeHtml(title)}</strong>
+          <small>${escapeHtml(date)} · ${escapeHtml(user)}</small>
+          ${reason ? `<small>Motivo: ${escapeHtml(reason)}</small>` : ""}
+        </div>
+      `;
+    }
+
+    async function openMasterHistory(recordIdRaw) {
+      if (!requireTabAccess("master")) return;
+      const recordId = decodeURIComponent(recordIdRaw || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+
+      const modal = document.getElementById("historyModal");
+      const body = document.getElementById("historyModalBody");
+      document.getElementById("historyModalTitle").textContent = `Historial · ${record.sku}`;
+      body.innerHTML = `<div class="empty">Cargando historial...</div>`;
+      modal.classList.remove("hidden");
+
+      const images = getRecordImageHistory(record);
+      const groups = { accepted: [], discarded: [], rejected: [], other: [] };
+      images.forEach(image => groups[historyGroupKey(image)].push(image));
+
+      const sections = [];
+      for (const key of ["accepted", "discarded", "rejected", "other"]) {
+        const group = groups[key] || [];
+        const cards = [];
+        for (let i = 0; i < group.length; i++) cards.push(await buildHistoryCard(group[i], i));
+        sections.push(`
+          <section class="history-folder">
+            <div class="history-folder-head">
+              <span>${historyGroupLabel(key)}</span>
+              <span class="pill status">${group.length}</span>
+            </div>
+            ${group.length ? `<div class="history-grid">${cards.join("")}</div>` : `<div class="empty">Sin imágenes.</div>`}
+          </section>
+        `);
+      }
+
+      body.innerHTML = sections.join("");
+    }
+
+    function closeHistoryModal(event) {
+      if (event) event.stopPropagation();
+      document.getElementById("historyModal").classList.add("hidden");
+      document.getElementById("historyModalBody").innerHTML = "";
     }
 
     function exportMasterExcel() {
