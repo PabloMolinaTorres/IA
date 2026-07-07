@@ -1754,6 +1754,106 @@
       border-color: rgba(34, 197, 94, .28);
     }
 
+
+
+    .history-modal-content {
+      width: min(96vw, 1180px);
+      height: min(92vh, 860px);
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .history-modal-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .history-modal-head strong {
+      display: block;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .history-modal-head small {
+      display: block;
+      color: var(--muted);
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .history-modal-body {
+      overflow-y: auto;
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .history-folder {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .history-folder-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+      font-weight: 900;
+    }
+
+    .history-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .history-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .history-card img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      border-radius: 10px;
+      background: white;
+      cursor: zoom-in;
+    }
+
+    .history-card strong {
+      font-size: 11px;
+      word-break: break-word;
+      line-height: 1.25;
+    }
+
+    .history-card small {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
     #aiProgressModal.image-modal:not(.hidden) {
       inset: auto;
       right: 18px;
@@ -1832,7 +1932,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.8 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.2.9 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1950,6 +2050,7 @@
         </div>
       </section>
 
+      <div id="workSearchBar" class="master-filter-bar"></div>
       <div id="workBulkBar" class="bulk-bar work-bulk-bar hidden"></div>
       <div id="workBulkEditPanel" class="work-bulk-edit-panel hidden"></div>
 
@@ -2106,6 +2207,22 @@
     </div>
   </div>
 
+
+
+  <div id="masterHistoryModal" class="image-modal hidden" onclick="closeMasterHistoryViewer(event)">
+    <button class="image-modal-close" onclick="closeMasterHistoryViewer(event)">×</button>
+    <div class="history-modal-content" onclick="event.stopPropagation()">
+      <div class="history-modal-head">
+        <div>
+          <strong id="masterHistoryTitle">Historial</strong>
+          <small id="masterHistorySubtitle"></small>
+        </div>
+        <button class="btn btn-soft btn-small" onclick="closeMasterHistoryViewer(event)">Cerrar</button>
+      </div>
+      <div id="masterHistoryBody" class="history-modal-body"></div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
@@ -2125,7 +2242,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.8 IA";
+    const APP_VERSION = "V1.2.9 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2231,6 +2348,7 @@ const firebaseConfig = {
     let metricsPeriod = "week";
     let masterSort = { field: "prioridad", direction: "asc" };
     let masterSearchQuery = "";
+    let workSearchQuery = "";
     let masterSuperiorFilter = "all";
     const selectedWorkBulkIds = new Set();
     const pos1Cache = {};
@@ -4115,7 +4233,20 @@ ${image.name || "Imagen sin nombre"}`);
       renderUploadDetail();
     }
 
-    function getVisibleWorkRecords() {
+    function parseSkuSearchTokens(value = "") {
+      return String(value || "")
+        .split(/[\s,;]+/)
+        .map(item => normalizeText(item))
+        .filter(Boolean);
+    }
+
+    function recordMatchesSkuSearch(record, tokens) {
+      if (!tokens.length) return true;
+      const sku = normalizeText(record.sku);
+      return tokens.some(token => sku === token || sku.includes(token));
+    }
+
+    function getBaseVisibleWorkRecords() {
       const user = currentUser();
       const role = getUserRole();
 
@@ -4137,8 +4268,55 @@ ${image.name || "Imagen sin nombre"}`);
       });
     }
 
+    function getVisibleWorkRecords() {
+      const tokens = parseSkuSearchTokens(workSearchQuery);
+      return getBaseVisibleWorkRecords().filter(record => recordMatchesSkuSearch(record, tokens));
+    }
+
+    function applyWorkSearch() {
+      const input = document.getElementById("workSearchInput");
+      workSearchQuery = input ? input.value.trim() : "";
+      selectedWorkBulkIds.clear();
+      renderWorkList();
+      renderWorkDetail();
+    }
+
+    function handleWorkSearchKey(event) {
+      if (event.key !== "Enter") return;
+      applyWorkSearch();
+    }
+
+    function clearWorkSearch() {
+      workSearchQuery = "";
+      selectedWorkBulkIds.clear();
+      renderWorkList();
+      renderWorkDetail();
+    }
+
+    function renderWorkSearchBar(totalRecords, visibleRecords) {
+      const el = document.getElementById("workSearchBar");
+      if (!el) return;
+      const filterActive = Boolean(workSearchQuery);
+      const countText = filterActive ? `${visibleRecords} de ${totalRecords}` : `${totalRecords}`;
+
+      el.innerHTML = `
+        <input
+          id="workSearchInput"
+          class="master-filter-input"
+          value="${escapeHtml(workSearchQuery)}"
+          placeholder="Buscar SKU(s): 123456789 987654321"
+          onkeydown="handleWorkSearchKey(event)"
+        />
+        <button class="btn btn-soft btn-small" onclick="applyWorkSearch()">Buscar</button>
+        <button class="btn btn-soft btn-small" onclick="clearWorkSearch()">Limpiar</button>
+        <div class="master-muted" style="grid-column:1 / -1;">${escapeHtml(countText)} SKU(s)</div>
+      `;
+    }
+
     function renderWorkList() {
+      const baseList = getBaseVisibleWorkRecords();
       const list = getVisibleWorkRecords();
+      renderWorkSearchBar(baseList.length, list.length);
       const visibleIds = new Set(list.map(record => record.id));
       [...selectedWorkBulkIds].forEach(id => {
         if (!visibleIds.has(id)) selectedWorkBulkIds.delete(id);
@@ -5430,16 +5608,11 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     }
 
     function parseMasterSearchTokens(value = masterSearchQuery) {
-      return String(value || "")
-        .split(/[,;\n]/)
-        .map(item => normalizeText(item))
-        .filter(Boolean);
+      return parseSkuSearchTokens(value);
     }
 
     function recordMatchesMasterSearch(record, tokens) {
-      if (!tokens.length) return true;
-      const sku = normalizeText(record.sku);
-      return tokens.some(token => sku === token || sku.includes(token));
+      return recordMatchesSkuSearch(record, tokens);
     }
 
     function recordMatchesMasterSuperiorFilter(record) {
@@ -5489,7 +5662,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
             id="masterSearchInput"
             class="master-filter-input"
             value="${escapeHtml(masterSearchQuery)}"
-            placeholder="Buscar SKU(s): 123456789, 987654321"
+            placeholder="Buscar SKU(s): 123456789 987654321"
             onkeydown="handleMasterSearchKey(event)"
           />
           <button class="btn btn-soft btn-small" onclick="applyMasterSearch()">Buscar</button>
@@ -5652,6 +5825,11 @@ Después podrás volver a cargar este SKU desde Excel o manual.
             <div class="master-muted">Admin: reasignar o quitar</div>
           </div>
         ` : "";
+        const viewHistoryButton = hasMasterDownloadImages(record) ? `
+          <button class="btn btn-soft btn-small" type="button" onclick="openMasterHistoryViewer('${record.id}')">
+            Ver historial
+          </button>
+        ` : "";
         const downloadHistoryButton = hasMasterDownloadImages(record) ? `
           <button class="btn btn-soft btn-small" type="button" onclick="downloadMasterImageHistory('${record.id}')">
             Descargar historial
@@ -5662,8 +5840,9 @@ Después podrás volver a cargar este SKU desde Excel o manual.
             Eliminar del Master
           </button>
         ` : "";
-        const adminActions = (downloadHistoryButton || deleteMasterButton) ? `
+        const adminActions = (viewHistoryButton || downloadHistoryButton || deleteMasterButton) ? `
           <div class="preview-actions">
+            ${viewHistoryButton}
             ${downloadHistoryButton}
             ${deleteMasterButton}
           </div>
@@ -5877,6 +6056,124 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       if (status.includes("rejected") || status.includes("rechaz")) return "rechazadas";
       if (status.includes("discard")) return "descartadas";
       return "historial";
+    }
+
+    function masterHistoryViewerGroup(image, record) {
+      const status = String(image.reviewStatus || image.result || image.sourceStatus || record?.estado || "").toLowerCase();
+      if (status.includes("approved") || status.includes("acept") || status.includes("aprob") || status.includes("descarg")) return "Aceptado";
+      if (status.includes("discard") || status.includes("descart")) return "Descartado";
+      if (status.includes("reject") || status.includes("rechaz")) return "Rechazado";
+      return "Otros";
+    }
+
+    function masterHistoryViewerImages(record) {
+      const activeImages = getRecordImages(record).map((image, index) => ({
+        ...image,
+        reviewStatus: image.reviewStatus || record.estado || "Actual",
+        result: image.result || record.estado || "Actual",
+        sourceLabel: "Actual",
+        historyId: image.historyId || image.id || `${record.id}_actual_${index}`
+      }));
+
+      const historyImages = getRecordImageHistory(record).map((image, index) => ({
+        ...image,
+        sourceLabel: "Historial",
+        historyId: image.historyId || image.id || `${record.id}_history_${index}`
+      }));
+
+      const all = [...activeImages, ...historyImages].filter(image => image && (image.url || image.path));
+      const seen = new Set();
+      return all.filter((image, index) => {
+        const key = historyImageKey(image, index);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    async function masterHistoryImageUrl(image) {
+      if (!image) return "";
+      if (image.url) return image.url;
+      if (!image.path) return "";
+      try {
+        return await getDownloadURL(storageRef(storage, image.path));
+      } catch (error) {
+        console.warn("No se pudo cargar imagen de historial:", image.path, error);
+        return "";
+      }
+    }
+
+    async function openMasterHistoryViewer(id) {
+      if (!requireTabAccess("master")) return;
+      const record = getRecord(id);
+      if (!record) return;
+
+      const modal = document.getElementById("masterHistoryModal");
+      const title = document.getElementById("masterHistoryTitle");
+      const subtitle = document.getElementById("masterHistorySubtitle");
+      const body = document.getElementById("masterHistoryBody");
+      if (!modal || !title || !subtitle || !body) return;
+
+      title.textContent = `Historial · ${record.sku}`;
+      subtitle.textContent = `${record.marca || "Sin marca"} · ${record.estado || "Sin estado"}`;
+      body.innerHTML = `<div class="empty">Cargando historial...</div>`;
+      modal.classList.remove("hidden");
+
+      const images = masterHistoryViewerImages(record);
+      if (!images.length) {
+        body.innerHTML = `<div class="empty">Este SKU no tiene historial visual.</div>`;
+        return;
+      }
+
+      const resolved = await Promise.all(images.map(async (image, index) => ({
+        image,
+        index,
+        url: await masterHistoryImageUrl(image),
+        group: masterHistoryViewerGroup(image, record)
+      })));
+
+      const folders = ["Aceptado", "Descartado", "Rechazado", "Otros"];
+      const html = folders.map(folder => {
+        const items = resolved.filter(item => item.group === folder && item.url);
+        if (!items.length) return "";
+        return `
+          <section class="history-folder">
+            <div class="history-folder-title">
+              <span>${escapeHtml(folder)}</span>
+              <span class="pill status">${items.length}</span>
+            </div>
+            <div class="history-grid">
+              ${items.map(({ image, url, index }) => {
+                const name = image.name || `${record.sku}_${String(index + 1).padStart(2, "0")}`;
+                const date = image.reviewedAt || image.archivedAt || image.uploadedAt || image.createdAt || "";
+                const user = image.reviewedBy || image.archivedBy || image.uploadedBy || image.generatedBy || image.editor || "";
+                const reason = image.reason || image.rejectionReason || image.motivoRechazo || "";
+                const status = historyStatusLabel(image.reviewStatus || image.result || image.sourceStatus);
+                return `
+                  <article class="history-card">
+                    <img src="${escapeHtml(url)}" alt="${escapeHtml(name)}" onclick="openImageModal('${escapeForInline(url)}', '${escapeForInline(name)}')" />
+                    <strong>${escapeHtml(name)}</strong>
+                    <small>${escapeHtml(status)}</small>
+                    ${date ? `<small>${escapeHtml(formatDate(date))}</small>` : ""}
+                    ${user ? `<small>${escapeHtml(user)}</small>` : ""}
+                    ${reason ? `<small>Motivo: ${escapeHtml(reason)}</small>` : ""}
+                  </article>
+                `;
+              }).join("")}
+            </div>
+          </section>
+        `;
+      }).join("");
+
+      body.innerHTML = html || `<div class="empty">No se pudieron cargar imágenes visibles del historial.</div>`;
+    }
+
+    function closeMasterHistoryViewer(event) {
+      if (event) event.stopPropagation();
+      const modal = document.getElementById("masterHistoryModal");
+      const body = document.getElementById("masterHistoryBody");
+      if (modal) modal.classList.add("hidden");
+      if (body) body.innerHTML = "";
     }
 
     async function downloadMasterImageHistory(id) {
@@ -7803,6 +8100,8 @@ ${image.name || "Imagen sin nombre"}`);
       toggleMetricsPanel,
       setMetricsPeriod,
       downloadMetricsExcel,
+      openMasterHistoryViewer,
+      closeMasterHistoryViewer,
       downloadMasterImageHistory,
       generateAiForPendingRecords,
       toggleNotificationsPanel,
@@ -7818,6 +8117,9 @@ ${image.name || "Imagen sin nombre"}`);
       closeBulkWorkEdit,
       saveBulkWorkEdit,
       adminRemoveSelectedSkusFromWork,
+      applyWorkSearch,
+      handleWorkSearchKey,
+      clearWorkSearch,
       setMasterSort,
       applyMasterSearch,
       handleMasterSearchKey,
