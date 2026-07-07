@@ -541,7 +541,12 @@
     .measure-svg line {
       stroke: rgba(82, 86, 91, .92);
       stroke-width: 1.25;
-      stroke-linecap: square;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .measure-svg circle {
+      fill: rgba(82, 86, 91, .92);
       vector-effect: non-scaling-stroke;
     }
 
@@ -805,7 +810,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>WIDA Medidas <span class="version">V1.1</span></h1>
+          <h1>WIDA Medidas <span class="version">V1.2</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2188,18 +2193,18 @@
         <svg class="measure-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
           ${height ? `
             <line x1="120" y1="245" x2="120" y2="755"></line>
-            <line x1="110" y1="245" x2="130" y2="245"></line>
-            <line x1="110" y1="755" x2="130" y2="755"></line>
+            <circle cx="120" cy="245" r="8"></circle>
+            <circle cx="120" cy="755" r="8"></circle>
           ` : ""}
           ${width ? `
             <line x1="315" y1="875" x2="850" y2="815"></line>
-            <line x1="315" y1="866" x2="315" y2="884"></line>
-            <line x1="850" y1="806" x2="850" y2="824"></line>
+            <circle cx="315" cy="875" r="8"></circle>
+            <circle cx="850" cy="815" r="8"></circle>
           ` : ""}
           ${depth ? `
             <line x1="155" y1="815" x2="315" y2="875"></line>
-            <line x1="148" y1="807" x2="162" y2="823"></line>
-            <line x1="308" y1="867" x2="322" y2="883"></line>
+            <circle cx="155" cy="815" r="8"></circle>
+            <circle cx="315" cy="875" r="8"></circle>
           ` : ""}
         </svg>`;
 
@@ -3010,10 +3015,11 @@ Instrucciones principales:
 
 Estilo visual:
 - Toma como referencia de estilo la imagen guía entregada junto con la solicitud.
-- Replica su criterio visual general: líneas limpias, composición ordenada y textos discretos.
+- Replica su criterio visual general: líneas limpias, composición ordenada, textos discretos y remates circulares en las líneas.
 - Agrega solamente líneas de medida y textos.
 - Usa líneas finas, rectas, ordenadas y de color gris oscuro o negro suave.
-- Agrega pequeños topes o flechas en los extremos de cada línea.
+- En cada extremo de cada línea agrega una pequeña bola o punto circular sólido.
+- No usar flechas, puntas ni topes rectos; usar siempre bolitas redondas en los extremos.
 - Usa textos de medida grandes, claros, legibles y bien alineados.
 - No tapes zonas importantes del producto.
 - Distribuye las medidas alrededor del producto de forma clara.
@@ -3031,7 +3037,8 @@ Resultado final:
 - Generar una imagen cuadrada, profesional y ordenada.
 - Conservar el fondo original.
 - Agregar únicamente la gráfica de medidas sobre la imagen existente.
-- Mostrar solo los valores de las medidas con la unidad, sin los nombres de las medidas.`;
+- Mostrar solo los valores de las medidas con la unidad, sin los nombres de las medidas.
+- Estandarizar todas las líneas de medida usando pequeñas bolas redondas en ambos extremos.`;
     }
 
     function base64ToFile(base64, fileName, mimeType = "image/png") {
