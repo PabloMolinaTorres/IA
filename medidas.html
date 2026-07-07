@@ -539,29 +539,30 @@
     }
 
     .measure-svg line {
-      stroke: rgba(75, 85, 99, .95);
-      stroke-width: 2;
-      stroke-linecap: round;
+      stroke: rgba(82, 86, 91, .92);
+      stroke-width: 1.25;
+      stroke-linecap: square;
+      vector-effect: non-scaling-stroke;
     }
 
     .measure-label {
       position: absolute;
       z-index: 3;
-      color: #6b7280;
-      background: rgba(255, 255, 255, .92);
-      border-radius: 999px;
-      padding: 4px 9px;
-      font-weight: 900;
-      font-size: 17px;
+      color: #6f747b;
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      font-weight: 800;
+      font-size: 15px;
       line-height: 1;
       white-space: nowrap;
-      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      text-shadow: 0 1px 0 rgba(255,255,255,.85), 0 -1px 0 rgba(255,255,255,.85), 1px 0 0 rgba(255,255,255,.85), -1px 0 0 rgba(255,255,255,.85);
       pointer-events: none;
     }
 
-    .label-height { left: 4%; top: 49%; transform: translateY(-50%); }
-    .label-width { left: 58%; bottom: 5%; transform: translateX(-50%); }
-    .label-depth { left: 14%; bottom: 4%; }
+    .label-height { left: 6%; top: 50%; transform: translateY(-50%); }
+    .label-width { left: 62%; bottom: 9%; transform: translateX(-50%); }
+    .label-depth { left: 13%; bottom: 13%; }
 
     .measure-summary {
       display: grid;
@@ -2178,21 +2179,21 @@
       const measures = Array.isArray(record.medidas) && record.medidas.length ? record.medidas : parseMeasures(record.medidaOriginal, record.subclase);
 
       const svg = `
-        <svg class="measure-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <svg class="measure-svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
           ${height ? `
-            <line x1="9" y1="22" x2="9" y2="74"></line>
-            <line x1="7.8" y1="22" x2="10.8" y2="22"></line>
-            <line x1="7.8" y1="74" x2="10.8" y2="74"></line>
+            <line x1="120" y1="245" x2="120" y2="755"></line>
+            <line x1="110" y1="245" x2="130" y2="245"></line>
+            <line x1="110" y1="755" x2="130" y2="755"></line>
           ` : ""}
           ${width ? `
-            <line x1="24" y1="90" x2="84" y2="90"></line>
-            <line x1="24" y1="88.5" x2="24" y2="91.5"></line>
-            <line x1="84" y1="88.5" x2="84" y2="91.5"></line>
+            <line x1="315" y1="875" x2="850" y2="815"></line>
+            <line x1="315" y1="866" x2="315" y2="884"></line>
+            <line x1="850" y1="806" x2="850" y2="824"></line>
           ` : ""}
           ${depth ? `
-            <line x1="15" y1="84" x2="28" y2="88"></line>
-            <line x1="14.3" y1="82.8" x2="15.7" y2="85.2"></line>
-            <line x1="27.3" y1="86.8" x2="28.7" y2="89.2"></line>
+            <line x1="155" y1="815" x2="315" y2="875"></line>
+            <line x1="148" y1="807" x2="162" y2="823"></line>
+            <line x1="308" y1="867" x2="322" y2="883"></line>
           ` : ""}
         </svg>`;
 
