@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>WIDA Protocolo 2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="./falabella.png" type="image/png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%238fca00'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='38' font-weight='900' fill='white'%3EW%3C/text%3E%3C/svg%3E" />
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -284,6 +284,16 @@
     .spec-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
     .spec-card h3 { margin: 0; font-size: 15px; }
     .spec-card p { margin: 0; color: var(--muted); line-height: 1.4; white-space: pre-wrap; font-weight: 700; }
+    .spec-structured { display: grid; gap: 10px; margin-top: 4px; }
+    .spec-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .spec-chip { border: 1px solid var(--border); background: var(--card2); border-radius: 999px; padding: 7px 10px; font-size: 12px; font-weight: 900; color: var(--text); }
+    .spec-table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; border: 1px solid var(--border); }
+    .spec-table th, .spec-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: 12px; vertical-align: top; }
+    .spec-table th { width: 42%; color: var(--muted); background: var(--card2); font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+    .spec-table tr:last-child th, .spec-table tr:last-child td { border-bottom: 0; }
+    .spec-raw { margin-top: 8px; }
+    .spec-raw summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 900; }
+    .spec-raw p { margin-top: 8px; }
     .spec-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
     .spec-images img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: zoom-in; }
 
@@ -472,13 +482,13 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.4</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.5</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
       <div class="top-right">
         <nav class="module-nav" aria-label="Módulos">
-          <a class="module-link" href="./index.html">Flujo IA</a>
+          <a class="module-link" href="./index.html">WIDA</a>
           <a class="module-link" href="./medidas.html">Medidas</a>
           <a class="module-link active" href="./protocolo2.html">Protocolo 2</a>
         </nav>
@@ -971,9 +981,90 @@
       return `
         <div class="spec-card">
           <h3>${escapeHtml(spec.brand)}</h3>
-          <p>${escapeHtml(spec.notes || "Sin texto")}</p>
+          ${renderSpecContent(spec)}
           ${spec.images?.length ? `<div class="spec-images">${spec.images.map(img => `<img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.name || spec.brand)}" onclick="openImageModal('${encodeForInline(img.url)}')">`).join("")}</div>` : ""}
         </div>`;
+    }
+
+    function renderSpecContent(spec) {
+      const parsed = spec.parsed || parseSpecNotes(spec.notes || "");
+      const chips = [];
+      if (parsed.format) chips.push(parsed.format);
+      if (parsed.background) chips.push(`Fondo: ${parsed.background}`);
+      if (parsed.shadow) chips.push(`Sombra: ${parsed.shadow}`);
+      if (parsed.view) chips.push(`Vista: ${parsed.view}`);
+
+      const details = Object.entries(parsed.details || {}).filter(([, value]) => String(value || "").trim());
+      const chipsHtml = chips.length ? `<div class="spec-chip-list">${chips.map(item => `<span class="spec-chip">${escapeHtml(item)}</span>`).join("")}</div>` : "";
+      const tableHtml = details.length ? `
+        <table class="spec-table">
+          <tbody>
+            ${details.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}
+          </tbody>
+        </table>` : "";
+      const rawHtml = spec.notes ? `
+        <details class="spec-raw">
+          <summary>Ver texto original</summary>
+          <p>${escapeHtml(spec.notes)}</p>
+        </details>` : "";
+
+      if (!chipsHtml && !tableHtml) return `<p>${escapeHtml(spec.notes || "Sin texto")}</p>`;
+      return `<div class="spec-structured">${chipsHtml}${tableHtml}${rawHtml}</div>`;
+    }
+
+    function parseSpecNotes(text) {
+      const raw = String(text || "").replace(/\r/g, "").trim();
+      const lines = raw.split("\n").map(line => line.trim()).filter(Boolean);
+      const parsed = { format: "", background: "", shadow: "", view: "", details: {} };
+      const knownDetailKeys = new Set([
+        "dimensiones",
+        "ancho",
+        "alto",
+        "resolución horizontal",
+        "resolucion horizontal",
+        "resolución vertical",
+        "resolucion vertical",
+        "profundidad en bits",
+        "compresión",
+        "compresion",
+        "unidad de resolución",
+        "unidad de resolucion",
+        "representación del color",
+        "representacion del color",
+        "bits comprimidos/píxel",
+        "bits comprimidos/pixel"
+      ]);
+
+      lines.forEach(line => {
+        const clean = line.replace(/\s+\/\s*$/, "").trim();
+        if (!clean) return;
+
+        if (!parsed.format && /FORMATO/i.test(clean)) {
+          parsed.format = clean.replace(/FORMATO\s*/i, "Formato ").replace(/\s+/g, " ").trim();
+          return;
+        }
+        if (!parsed.background && /FONDO/i.test(clean)) {
+          parsed.background = clean.replace(/FONDO\s*/i, "").replace(/[/:]+$/g, "").trim() || clean;
+          return;
+        }
+        if (!parsed.shadow && /SOMBRA/i.test(clean)) {
+          parsed.shadow = clean.replace(/SOMBRA\s*/i, "").trim() || clean;
+          return;
+        }
+        if (!parsed.view && /VISTA/i.test(clean)) {
+          parsed.view = clean.replace(/VISTA\s*/i, "").trim() || clean;
+          return;
+        }
+
+        const match = clean.match(/^([^:]+):\s*(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          const value = match[2].trim();
+          const normalizedKey = normalizeText(key);
+          if (knownDetailKeys.has(normalizedKey) || value) parsed.details[key] = value || "-";
+        }
+      });
+      return parsed;
     }
 
     function renderSkuCard(record, row) {
@@ -1685,7 +1776,7 @@
           <div class="manual-title"><h2>Especificaciones</h2></div>
           <div class="manual-grid">
             <div class="field"><label>Marca</label><input id="specBrand" placeholder="Marca" /></div>
-            <div class="field" style="grid-column: span 2;"><label>Texto</label><textarea id="specNotes" placeholder="Especificaciones para post producción"></textarea></div>
+            <div class="field" style="grid-column: span 2;"><label>Texto</label><textarea id="specNotes" placeholder="Pega especificaciones. Ej: FORMATO 1500X1500, FONDO BLANCO, SOMBRA TENUE..."></textarea></div>
           </div>
           <label class="upload-box" for="specImagesInput" style="margin-top:12px;">
             <strong>Agregar imágenes de referencia</strong>
@@ -1703,7 +1794,7 @@
                   <div><h3>${escapeHtml(spec.brand)}</h3><small>${formatDate(spec.updatedAt)}</small></div>
                   ${isReviewer() ? `<div class="actions"><button class="btn btn-soft btn-small" onclick="editSpec('${encodeForInline(spec.id)}')">Editar</button><button class="btn btn-red btn-small" onclick="deleteSpec('${encodeForInline(spec.id)}')">Eliminar</button></div>` : ""}
                 </div>
-                <p>${escapeHtml(spec.notes || "Sin texto")}</p>
+                ${renderSpecContent(spec)}
                 ${spec.images?.length ? `<div class="spec-images">${spec.images.map(img => `<img src="${escapeHtml(img.url)}" onclick="openImageModal('${encodeForInline(img.url)}')">`).join("")}</div>` : ""}
               </div>`).join("")}</div>` : `<div class="empty">Sin especificaciones.</div>`}
           </div>
@@ -1743,6 +1834,7 @@
         id,
         brand,
         notes,
+        parsed: parseSpecNotes(notes),
         images: [...(existing.images || []), ...uploaded],
         createdAt: existing.createdAt || now,
         createdBy: existing.createdBy || currentUser(),
