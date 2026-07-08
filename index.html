@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Flujo IA</title>
+  <title>WIDA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="./falabella.png" type="image/png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%238fca00'/%3E%3Ctext x='50%25' y='53%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial,sans-serif' font-size='34' font-weight='900' fill='white'%3EW%3C/text%3E%3C/svg%3E" type="image/svg+xml" />
 
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
 
@@ -1930,16 +1930,16 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <div class="logo-box">IA</div>
+        <div class="logo-box">W</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.3.0 IA</span></h1>
+          <h1>WIDA <span class="version">V1.3.1 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
 
       <div class="top-right">
         <nav class="module-nav" aria-label="Módulos">
-          <a class="module-link active" href="./index.html">Flujo IA</a>
+          <a class="module-link active" href="./index.html">WIDA</a>
           <a class="module-link" href="./medidas.html">Medidas</a>
           <a class="module-link" href="./protocolo2.html">Protocolo 2</a>
         </nav>
@@ -2284,7 +2284,7 @@ const firebaseConfig = {
     const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
     const ALERTED_NOTIFICATIONS_KEY = "flujo_ia_alerted_notifications";
     const NOTIFICATION_SOUND_KEY = "flujo_ia_notification_sound";
-    const BASE_DOCUMENT_TITLE = "Flujo IA";
+    const BASE_DOCUMENT_TITLE = "WIDA";
     const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
     const ADMIN_PIN = "0000";
     const MAX_UPLOAD_FILES_PER_BATCH = 100;
@@ -3117,7 +3117,7 @@ Instrucciones:
       if (role === ROLES.REVISOR) {
         return {
           title: "Hay imágenes para revisar",
-          text: `${review} SKU(s) pendiente(s) de revisión en Flujo IA.`
+          text: `${review} SKU(s) pendiente(s) de revisión en WIDA.`
         };
       }
 
@@ -3126,7 +3126,7 @@ Instrucciones:
       if (rejected) parts.push(`${rejected} rechazado(s)`);
 
       return {
-        title: "Tienes novedades en Flujo IA",
+        title: "Tienes novedades en WIDA",
         text: parts.length ? `SKU(s): ${parts.join(" · ")}.` : `${items.length} novedad(es) pendiente(s).`
       };
     }
@@ -6157,6 +6157,11 @@ Después podrás volver a cargar este SKU desde Excel o manual.
                     ${date ? `<small>${escapeHtml(formatDate(date))}</small>` : ""}
                     ${user ? `<small>${escapeHtml(user)}</small>` : ""}
                     ${reason ? `<small>Motivo: ${escapeHtml(reason)}</small>` : ""}
+                    <div class="preview-actions">
+                      <button class="btn btn-primary btn-small" type="button" onclick="downloadMasterHistorySingleImage('${encodeForInline(record.id)}', '${encodeForInline(masterHistoryImageIdentifier(image, index))}')">
+                        Descargar 1500
+                      </button>
+                    </div>
                   </article>
                 `;
               }).join("")}
@@ -6174,6 +6179,70 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const body = document.getElementById("masterHistoryBody");
       if (modal) modal.classList.add("hidden");
       if (body) body.innerHTML = "";
+    }
+
+    function masterHistoryImageIdentifier(image, index = 0) {
+      return String(image?.historyId || image?.id || image?.path || image?.name || index);
+    }
+
+    function findMasterHistoryImage(record, imageKey) {
+      const key = String(imageKey || "");
+      return masterHistoryViewerImages(record).find((image, index) => {
+        const identifiers = [
+          masterHistoryImageIdentifier(image, index),
+          imageIdentifier(image, index),
+          image.historyId,
+          image.id,
+          image.path,
+          image.name
+        ].filter(Boolean).map(String);
+        return identifiers.includes(key);
+      }) || null;
+    }
+
+    function masterHistorySingleFileName(record, image, index = 0) {
+      const viewFromName = extractViewNumberFromFileName(image?.name || "");
+      const viewFromPath = extractViewNumberFromFileName(image?.path || "");
+      const viewNumber = viewFromName !== 9999 ? viewFromName : (viewFromPath !== 9999 ? viewFromPath : index + 5);
+      const suffix = String(viewNumber).padStart(3, "0");
+      return `${safeFileName(record?.sku || image?.sku || "sku")}_${suffix}.jpg`;
+    }
+
+    async function imageBlobFromHistoryImage(image) {
+      if (image?.path) return await downloadStorageBlob(image.path);
+      if (image?.url) {
+        const response = await fetch(image.url, { cache: "no-store" });
+        if (!response.ok) throw new Error(`No se pudo descargar imagen (${response.status})`);
+        return await response.blob();
+      }
+      throw new Error("La imagen no tiene URL ni ruta de Storage.");
+    }
+
+    async function downloadMasterHistorySingleImage(recordIdRaw, imageKeyRaw) {
+      if (!requireTabAccess("master")) return;
+      const recordId = decodeURIComponent(recordIdRaw || "");
+      const imageKey = decodeURIComponent(imageKeyRaw || "");
+      const record = getRecord(recordId);
+      if (!record) return;
+
+      const images = masterHistoryViewerImages(record);
+      const image = findMasterHistoryImage(record, imageKey);
+      if (!image) {
+        alert("No se encontró la imagen seleccionada en el historial.");
+        return;
+      }
+
+      try {
+        toast("Preparando descarga 1500x1500...");
+        const index = Math.max(0, images.findIndex(item => masterHistoryImageIdentifier(item) === masterHistoryImageIdentifier(image)));
+        const blob = await imageBlobFromHistoryImage(image);
+        const resizedBlob = await resizeImageBlobToJpeg(blob, 1500);
+        saveAs(resizedBlob, masterHistorySingleFileName(record, image, index));
+        toast("Imagen descargada 1500x1500.");
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo descargar esta imagen del historial.");
+      }
     }
 
     async function downloadMasterImageHistory(id) {
@@ -7053,7 +7122,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         }
 
         const zipBlob = await zip.generateAsync({ type: "blob" });
-        saveAs(zipBlob, `aprobadas_flujo_ia_${dateStamp()}.zip`);
+        saveAs(zipBlob, `aprobadas_wida_${dateStamp()}.zip`);
 
         for (const plan of approvalPlans) {
           const record = plan.record;
@@ -8102,6 +8171,7 @@ ${image.name || "Imagen sin nombre"}`);
       downloadMetricsExcel,
       openMasterHistoryViewer,
       closeMasterHistoryViewer,
+      downloadMasterHistorySingleImage,
       downloadMasterImageHistory,
       generateAiForPendingRecords,
       toggleNotificationsPanel,
