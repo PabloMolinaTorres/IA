@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="./falabella.png" type="image/png" />
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
     :root {
       --bg: #f7f8fa;
@@ -16,6 +19,11 @@
       --border: #e5e7eb;
       --greenFalabella: #8fca00;
       --greenDark: #6fa800;
+      --red: #ef4444;
+      --orange: #fb923c;
+      --yellow: #facc15;
+      --green: #22c55e;
+      --blue: #3b82f6;
       --shadow: 0 8px 24px rgba(0, 0, 0, .07);
       --radius: 18px;
     }
@@ -32,6 +40,7 @@
 
     * { box-sizing: border-box; font-family: 'Lato', sans-serif; }
     body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input, select, textarea { font-family: inherit; }
 
     .topbar {
       position: sticky;
@@ -78,7 +87,7 @@
       font-weight: 900;
     }
 
-    .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
     .module-nav { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .module-link {
       text-decoration: none;
@@ -89,12 +98,33 @@
       padding: 10px 13px;
       font-weight: 900;
       font-size: 13px;
+      white-space: nowrap;
     }
 
-    .module-link.active {
-      background: var(--greenFalabella);
-      border-color: var(--greenFalabella);
-      color: white;
+    .module-link.active { background: var(--greenFalabella); border-color: var(--greenFalabella); color: white; }
+    .user-select {
+      min-width: 190px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    .role-badge {
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: rgba(143, 202, 0, .14);
+      color: var(--greenDark);
+      border-color: rgba(143, 202, 0, .28);
     }
 
     .theme-btn {
@@ -109,24 +139,262 @@
     }
 
     .main { max-width: 1450px; margin: 0 auto; padding: 22px; }
-    .placeholder {
+    .hidden { display: none !important; }
+
+    .lock-message {
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .tab {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 900;
+    }
+    .tab.active { background: var(--greenFalabella); color: white; border-color: var(--greenFalabella); }
+    .tab:disabled { opacity: .45; cursor: not-allowed; }
+
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+    .stat small { color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+    .stat strong { display: block; font-size: 25px; margin-top: 5px; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .layout { display: grid; grid-template-columns: 390px 1fr; gap: 16px; align-items: start; }
+    .list-panel, .detail-panel, .master-panel, .manual-panel {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding: 26px;
-      display: grid;
-      gap: 8px;
+      overflow: hidden;
     }
 
-    .placeholder h2 { margin: 0; font-size: 24px; }
-    .placeholder p { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.45; }
+    .manual-panel { padding: 16px; margin-bottom: 18px; overflow: visible; }
+    .manual-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .manual-title h2 { margin: 0; font-size: 18px; }
+    .manual-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 11px; color: var(--muted); font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      font-weight: 700;
+    }
+    .field textarea { min-height: 86px; resize: vertical; line-height: 1.35; }
+
+    .panel-title {
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .panel-title-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .search-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    .list-search { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--card); }
+    .case-list { max-height: calc(100vh - 330px); overflow-y: auto; }
+    .case-item { padding: 13px 16px; border-bottom: 1px solid var(--border); cursor: pointer; display: grid; gap: 7px; }
+    .case-item:hover, .case-item.active { background: rgba(143, 202, 0, .08); }
+    .case-item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .case-code { font-size: 16px; font-weight: 900; }
+    .case-meta { color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.4; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .status { background: var(--card2); color: var(--muted); border-color: var(--border); }
+    .status-pendiente { background: rgba(107, 114, 128, .16); color: var(--muted); border-color: rgba(107, 114, 128, .32); }
+    .status-trabajo { background: rgba(59, 130, 246, .13); color: var(--blue); border-color: rgba(59, 130, 246, .25); }
+    .status-revision { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
+    .status-rechazado { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+    .status-aprobado { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
+    .status-descargado { background: rgba(34, 197, 94, .22); color: var(--green); border-color: rgba(34, 197, 94, .36); }
+    .status-descartado { background: rgba(107, 114, 128, .16); color: var(--muted); border-color: rgba(107, 114, 128, .32); }
+
+    .detail-content { padding: 18px; }
+    .empty { padding: 30px; color: var(--muted); text-align: center; font-weight: 700; }
+    .detail-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; }
+    .detail-header h2 { margin: 0; font-size: 24px; }
+    .detail-header small { display: block; margin-top: 4px; color: var(--muted); font-weight: 700; }
+
+    .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .info-box { background: var(--card2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+    .info-box small { display: block; color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 5px; }
+    .info-box span { white-space: pre-wrap; line-height: 1.35; font-size: 14px; font-weight: 800; }
+
+    .section-block { background: var(--card2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+    .section-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .section-head strong { font-size: 14px; font-weight: 900; }
+    .section-head small { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    .sku-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+    .sku-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 10px; display: grid; gap: 5px; }
+    .sku-card strong { font-size: 13px; }
+    .sku-card span { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .view-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .view-tag { border-radius: 999px; padding: 4px 7px; background: var(--card2); border: 1px solid var(--border); font-size: 10px; font-weight: 900; color: var(--muted); }
+    .view-ok { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
+    .view-review { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
+    .view-bad { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+
+    .spec-list { display: grid; gap: 10px; }
+    .spec-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+    .spec-card h3 { margin: 0; font-size: 15px; }
+    .spec-card p { margin: 0; color: var(--muted); line-height: 1.4; white-space: pre-wrap; font-weight: 700; }
+    .spec-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+    .spec-images img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: zoom-in; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--greenFalabella); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--greenDark); }
+    .btn-soft { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .btn-blue { background: var(--blue); color: white; }
+    .btn-red { background: var(--red); color: white; }
+    .btn-small { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+
+    .upload-box {
+      border: 2px dashed var(--border);
+      background: var(--card2);
+      border-radius: var(--radius);
+      padding: 34px 20px;
+      text-align: center;
+      cursor: pointer;
+      display: block;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+      margin-bottom: 14px;
+    }
+    .upload-box:hover, .upload-box.drag-over { border-color: var(--greenFalabella); background: rgba(143, 202, 0, .08); transform: translateY(-1px); }
+    .upload-box strong { display: block; font-size: 17px; margin-bottom: 6px; }
+    .upload-box small { color: var(--muted); line-height: 1.4; }
+    .input-file { display: none; }
+
+    .match-table-wrap { width: 100%; overflow: auto; }
+    .table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    .table th, .table td { padding: 11px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: 13px; }
+    .table th { background: var(--card2); color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; z-index: 1; }
+    .table tr:hover td { background: rgba(143, 202, 0, .05); }
+    .muted { color: var(--muted); font-weight: 700; }
+
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .image-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: grid; }
+    .image-card-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--card2); display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; font-weight: 900; color: var(--muted); }
+    .image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: white; cursor: zoom-in; }
+    .image-card-body { padding: 12px; display: grid; gap: 8px; }
+    .reject-box textarea { width: 100%; min-height: 80px; resize: vertical; border: 1px solid var(--border); background: var(--card2); color: var(--text); border-radius: 12px; padding: 10px; outline: none; line-height: 1.35; }
+
+    .master-filter-bar { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--card); display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; gap: 8px; align-items: center; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, .72);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .modal-content {
+      width: min(96vw, 1280px);
+      max-height: 92vh;
+      overflow: auto;
+      background: var(--card);
+      color: var(--text);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    .modal-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; position: sticky; top: 0; background: var(--card); z-index: 2; }
+    .modal-head strong { font-size: 16px; }
+    .modal-body { padding: 16px; }
+    .modal-close { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--border); background: var(--card2); color: var(--text); cursor: pointer; font-size: 20px; font-weight: 900; }
+    .history-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .history-section { display: grid; gap: 12px; }
+
+    .image-modal { position: fixed; inset: 0; z-index: 110; background: rgba(0,0,0,.84); display: grid; place-items: center; padding: 24px; }
+    .image-modal img { max-width: 95vw; max-height: 90vh; object-fit: contain; background: white; border-radius: 14px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 120;
+      background: #111827;
+      color: white;
+      padding: 13px 15px;
+      border-radius: 14px;
+      box-shadow: 0 15px 35px rgba(0,0,0,.25);
+      font-weight: 900;
+      display: none;
+      max-width: 360px;
+    }
+    body.dark .toast { background: white; color: #111; }
 
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; }
       .module-nav { width: 100%; }
       .module-link { flex: 1; text-align: center; }
+      .layout, .manual-grid, .info-grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .case-list { max-height: none; }
+      .master-filter-bar { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -134,9 +402,9 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <div class="logo-box">IA</div>
+        <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V0.1</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.0</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -146,34 +414,1278 @@
           <a class="module-link" href="./medidas.html">Medidas</a>
           <a class="module-link active" href="./protocolo2.html">Protocolo 2</a>
         </nav>
+        <select id="currentUser" class="user-select" onchange="handleUserChange()">
+          <option value="">Seleccionar usuario</option>
+          <option>Pablo</option>
+          <option>Mylena</option>
+          <option>Fernanda</option>
+          <option>Fernando</option>
+          <option>Marcos</option>
+          <option>Sebastian</option>
+          <option>Kathe</option>
+          <option>Cindy</option>
+          <option>Daniela</option>
+          <option>Cathy</option>
+        </select>
+        <span id="userRoleBadge" class="role-badge hidden"></span>
         <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
       </div>
     </div>
   </header>
 
   <main class="main">
-    <section class="placeholder">
-      <h2>Protocolo 2</h2>
-      <p>Módulo reservado para desarrollo.</p>
+    <div id="lockMessage" class="lock-message">Selecciona usuario para comenzar.</div>
+
+    <section id="appContent" class="hidden">
+      <div class="tabs" id="tabs"></div>
+
+      <div class="stats">
+        <div class="stat"><small>Casos pendientes</small><strong id="statPending">0</strong></div>
+        <div class="stat"><small>En trabajo</small><strong id="statWork">0</strong></div>
+        <div class="stat"><small>En revisión</small><strong id="statReview">0</strong></div>
+        <div class="stat"><small>Completados</small><strong id="statCompleted">0</strong></div>
+        <div class="stat"><small>Imágenes activas</small><strong id="statImages">0</strong></div>
+      </div>
+
+      <section id="viewWork" class="view"></section>
+      <section id="viewUpload" class="view"></section>
+      <section id="viewReview" class="view"></section>
+      <section id="viewMaster" class="view"></section>
+      <section id="viewSpecs" class="view"></section>
     </section>
   </main>
 
-  <script>
-    const THEME_KEY = 'flujo_ia_theme';
+  <div id="historyModal" class="modal hidden"></div>
+  <div id="imageModal" class="image-modal hidden" onclick="closeImageModal()"></div>
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      getStorage,
+      ref as storageRef,
+      uploadBytes,
+      getDownloadURL,
+      deleteObject
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDmzE2YLMHuHNkBEnE3J7GGVA4RFUx3rpw",
+      authDomain: "flujo-ia-auto.firebaseapp.com",
+      projectId: "flujo-ia-auto",
+      storageBucket: "flujo-ia-auto.firebasestorage.app",
+      messagingSenderId: "171949468816",
+      appId: "1:171949468816:web:712d793918792d731b7c15"
+    };
+
+    const THEME_KEY = "flujo_ia_theme";
+    const SAVED_USER_KEY = "flujo_ia_current_user";
+    const BASE_DOCUMENT_TITLE = "WIDA Protocolo 2";
+
+    const CASE_COLLECTION = "flujo_ia_protocolo2_casos";
+    const IMAGE_COLLECTION = "flujo_ia_protocolo2_imagenes";
+    const SPEC_COLLECTION = "flujo_ia_protocolo2_especificaciones";
+    const STORAGE_ROOT = "flujo-ia/protocolo2";
+    const MAX_UPLOAD_SIZE_BYTES = 15 * 1024 * 1024;
+    const ALLOWED_UPLOAD_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif"];
+    const ALLOWED_UPLOAD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+
+    const ROLES = { ADMIN: "admin", RETOCADOR: "retocador", REVISOR: "revisor" };
+    const ROLE_LABELS = { [ROLES.ADMIN]: "Admin", [ROLES.RETOCADOR]: "Retocador", [ROLES.REVISOR]: "Revisor" };
+    const USER_ROLES = {
+      Pablo: ROLES.ADMIN,
+      Mylena: ROLES.RETOCADOR,
+      Fernanda: ROLES.RETOCADOR,
+      Fernando: ROLES.RETOCADOR,
+      Marcos: ROLES.RETOCADOR,
+      Sebastian: ROLES.RETOCADOR,
+      Kathe: ROLES.RETOCADOR,
+      Cindy: ROLES.REVISOR,
+      Daniela: ROLES.REVISOR,
+      Cathy: ROLES.REVISOR
+    };
+    const ROLE_TABS = {
+      [ROLES.ADMIN]: ["work", "upload", "review", "master", "specs"],
+      [ROLES.RETOCADOR]: ["work", "upload", "master", "specs"],
+      [ROLES.REVISOR]: ["work", "review", "master", "specs"]
+    };
+
+    const TAB_LABELS = {
+      work: "SKU a trabajar",
+      upload: "Subir trabajado",
+      review: "Revisión",
+      master: "Master",
+      specs: "Especificaciones"
+    };
+
+    const STATUS = {
+      PENDIENTE: "Pendiente",
+      TRABAJO: "En trabajo",
+      REVISION: "En revisión",
+      RECHAZADO: "Pendiente corrección",
+      COMPLETADO: "Completado",
+      DESCARGADO: "Descargado",
+      DESCARTADO: "Descartado"
+    };
+
+    const IMG_STATUS = {
+      REVISION: "En revisión",
+      APROBADO: "Aceptado",
+      RECHAZADO: "Rechazado",
+      DESCARTADO: "Descartado"
+    };
+
+    let db = null;
+    let storage = null;
+    let firebaseReady = false;
+    let cases = [];
+    let images = [];
+    let specs = [];
+    let activeTab = "work";
+    let selectedWorkId = "";
+    let selectedUploadId = "";
+    let selectedReviewId = "";
+    let masterSearch = "";
+    let workSearch = "";
+    let historyTab = "accepted";
+    let uploadProcessing = false;
+    let unsubscribeCases = null;
+    let unsubscribeImages = null;
+    let unsubscribeSpecs = null;
+
+    function currentUser() { return document.getElementById("currentUser")?.value || ""; }
+    function currentRole() { return USER_ROLES[currentUser()] || ""; }
+    function isAdmin() { return currentRole() === ROLES.ADMIN; }
+    function isReviewer() { return currentRole() === ROLES.REVISOR || isAdmin(); }
+    function canAccess(tab) { return (ROLE_TABS[currentRole()] || []).includes(tab); }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function encodeForInline(value) { return encodeURIComponent(String(value ?? "")); }
+    function normalizeText(value) {
+      return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+    function normalizeSku(value) { return String(value ?? "").trim().replace(/\.0$/, "").toUpperCase(); }
+    function normalizeBrand(value) { return String(value ?? "").trim().toUpperCase(); }
+    function safeFileName(value) {
+      return String(value || "archivo")
+        .replace(/[\\/:*?"<>|#%{}$!'@+`=]/g, "_")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "") || "archivo";
+    }
+    function dateStamp() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    }
+    function formatDate(value) {
+      if (!value) return "-";
+      try { return new Date(value).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }); }
+      catch { return String(value); }
+    }
+    function addDaysIso(days) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString();
+    }
+    function splitSearchTerms(value) {
+      return String(value || "")
+        .split(/[\s,;]+/g)
+        .map(item => normalizeSku(item))
+        .filter(Boolean);
+    }
+
+    function caseRef(id) { return doc(db, CASE_COLLECTION, String(id)); }
+    function imageRef(id) { return doc(db, IMAGE_COLLECTION, String(id)); }
+    function specRef(id) { return doc(db, SPEC_COLLECTION, String(id)); }
 
     function loadTheme() {
       const saved = localStorage.getItem(THEME_KEY);
-      if (saved === 'dark') document.body.classList.add('dark');
-      document.getElementById('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      if (saved === "dark") document.body.classList.add("dark");
+      document.getElementById("themeBtn").textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+    }
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+      localStorage.setItem(THEME_KEY, document.body.classList.contains("dark") ? "dark" : "light");
+      document.getElementById("themeBtn").textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
     }
 
-    function toggleTheme() {
-      document.body.classList.toggle('dark');
-      localStorage.setItem(THEME_KEY, document.body.classList.contains('dark') ? 'dark' : 'light');
-      document.getElementById('themeBtn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    function initFirebase() {
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        storage = getStorage(app);
+        firebaseReady = true;
+        subscribeData();
+      } catch (err) {
+        console.error(err);
+        firebaseReady = false;
+        document.getElementById("lockMessage").textContent = "No se pudo iniciar Firebase.";
+      }
     }
+
+    function subscribeData() {
+      if (!firebaseReady) return;
+      if (unsubscribeCases) unsubscribeCases();
+      if (unsubscribeImages) unsubscribeImages();
+      if (unsubscribeSpecs) unsubscribeSpecs();
+
+      unsubscribeCases = onSnapshot(collection(db, CASE_COLLECTION), snap => {
+        cases = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        cases.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        refresh();
+      }, err => console.error(err));
+
+      unsubscribeImages = onSnapshot(collection(db, IMAGE_COLLECTION), snap => {
+        images = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        images.sort((a, b) => String(a.sku || "").localeCompare(String(b.sku || "")) || String(a.view || "").localeCompare(String(b.view || "")));
+        refresh();
+      }, err => console.error(err));
+
+      unsubscribeSpecs = onSnapshot(collection(db, SPEC_COLLECTION), snap => {
+        specs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        specs.sort((a, b) => String(a.brand || "").localeCompare(String(b.brand || "")));
+        refresh();
+      }, err => console.error(err));
+    }
+
+    function handleUserChange() {
+      const user = currentUser();
+      if (user) localStorage.setItem(SAVED_USER_KEY, user);
+      const role = currentRole();
+      const badge = document.getElementById("userRoleBadge");
+      badge.textContent = role ? ROLE_LABELS[role] : "";
+      badge.classList.toggle("hidden", !role);
+      const allowed = role && firebaseReady;
+      document.getElementById("lockMessage").classList.toggle("hidden", allowed);
+      document.getElementById("appContent").classList.toggle("hidden", !allowed);
+      if (!allowed) {
+        document.getElementById("lockMessage").textContent = user ? "Usuario sin permisos en Protocolo 2." : "Selecciona usuario para comenzar.";
+        return;
+      }
+      const tabs = ROLE_TABS[role] || [];
+      if (!tabs.includes(activeTab)) activeTab = tabs[0] || "work";
+      refresh();
+    }
+
+    function initUser() {
+      const saved = localStorage.getItem(SAVED_USER_KEY);
+      const select = document.getElementById("currentUser");
+      if (saved && [...select.options].some(option => option.value === saved || option.textContent === saved)) select.value = saved;
+      handleUserChange();
+    }
+
+    function setTab(tab) {
+      if (!canAccess(tab)) return;
+      activeTab = tab;
+      refresh();
+    }
+
+    function refresh() {
+      if (!firebaseReady) return;
+      const role = currentRole();
+      const allowed = role && firebaseReady;
+      document.getElementById("lockMessage").classList.toggle("hidden", allowed);
+      document.getElementById("appContent").classList.toggle("hidden", !allowed);
+      if (!allowed) return;
+      renderTabs();
+      renderStats();
+      renderActiveView();
+    }
+
+    function renderTabs() {
+      const tabs = ROLE_TABS[currentRole()] || [];
+      document.getElementById("tabs").innerHTML = tabs.map(tab => `
+        <button class="tab ${activeTab === tab ? "active" : ""}" onclick="setTab('${tab}')">${TAB_LABELS[tab]}</button>
+      `).join("");
+    }
+
+    function getCaseImages(caseId) { return images.filter(img => img.caseId === caseId); }
+    function getActiveImages(caseId) { return getCaseImages(caseId).filter(img => img.active !== false); }
+    function getApprovedImages(caseId) { return getCaseImages(caseId).filter(img => img.status === IMG_STATUS.APROBADO); }
+    function getRevisionImages(caseId) { return getCaseImages(caseId).filter(img => img.status === IMG_STATUS.REVISION && img.active !== false); }
+    function getRejectedImages(caseId) { return getCaseImages(caseId).filter(img => img.status === IMG_STATUS.RECHAZADO); }
+
+    function renderStats() {
+      const pending = cases.filter(c => c.estado === STATUS.PENDIENTE || c.estado === STATUS.RECHAZADO).length;
+      const work = cases.filter(c => c.estado === STATUS.TRABAJO).length;
+      const review = cases.filter(c => c.estado === STATUS.REVISION).length;
+      const completed = cases.filter(c => c.estado === STATUS.COMPLETADO || c.estado === STATUS.DESCARGADO).length;
+      const activeImages = images.filter(img => img.active !== false).length;
+      document.getElementById("statPending").textContent = pending;
+      document.getElementById("statWork").textContent = work;
+      document.getElementById("statReview").textContent = review;
+      document.getElementById("statCompleted").textContent = completed;
+      document.getElementById("statImages").textContent = activeImages;
+      document.title = `${BASE_DOCUMENT_TITLE} (${pending + work + review})`;
+    }
+
+    function renderActiveView() {
+      ["work", "upload", "review", "master", "specs"].forEach(tab => {
+        document.getElementById(`view${cap(tab)}`).classList.toggle("active", activeTab === tab);
+      });
+      if (activeTab === "work") renderWork();
+      if (activeTab === "upload") renderUpload();
+      if (activeTab === "review") renderReview();
+      if (activeTab === "master") renderMaster();
+      if (activeTab === "specs") renderSpecs();
+    }
+    function cap(tab) { return tab.charAt(0).toUpperCase() + tab.slice(1); }
+
+    function statusPill(status) {
+      const key = normalizeText(status).replace(/\s+/g, "-");
+      const cls = status === STATUS.TRABAJO ? "status-trabajo"
+        : status === STATUS.REVISION ? "status-revision"
+        : status === STATUS.RECHAZADO ? "status-rechazado"
+        : status === STATUS.COMPLETADO ? "status-aprobado"
+        : status === STATUS.DESCARGADO ? "status-descargado"
+        : status === STATUS.DESCARTADO ? "status-descartado"
+        : "status-pendiente";
+      return `<span class="pill ${cls}">${escapeHtml(status || STATUS.PENDIENTE)}</span>`;
+    }
+
+    function caseMatchesTerms(record, terms) {
+      if (!terms.length) return true;
+      const skuSet = new Set((record.skus || []).map(row => normalizeSku(row.sku)));
+      const haystack = [record.caseNumber, record.editor, ...(record.brands || [])].map(normalizeSku);
+      return terms.some(term => skuSet.has(term) || haystack.some(value => value.includes(term)));
+    }
+
+    function getWorkCases() {
+      const terms = splitSearchTerms(workSearch);
+      const role = currentRole();
+      return cases.filter(record => {
+        const statusOk = [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO].includes(record.estado || STATUS.PENDIENTE);
+        if (!statusOk) return false;
+        if (role === ROLES.RETOCADOR && record.editor && record.editor !== currentUser()) return false;
+        return caseMatchesTerms(record, terms);
+      });
+    }
+
+    function renderCaseItem(record, selectedId, selectFn) {
+      const activeCount = getActiveImages(record.id).length;
+      const revCount = getRevisionImages(record.id).length;
+      const rejected = (record.pendingRejected || []).length;
+      return `
+        <div class="case-item ${record.id === selectedId ? "active" : ""}" onclick="${selectFn}('${encodeForInline(record.id)}')">
+          <div class="case-item-top">
+            <span class="case-code">Caso ${escapeHtml(record.caseNumber || record.id)}</span>
+            ${statusPill(record.estado || STATUS.PENDIENTE)}
+          </div>
+          <div class="case-meta">
+            ${(record.brands || []).join(", ") || "Sin marca"}<br>
+            ${(record.skus || []).length} SKU · ${activeCount} img · ${revCount} rev · ${rejected} faltante(s)<br>
+            ${record.editor ? `Post: ${escapeHtml(record.editor)}` : "Sin retocador"}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWork() {
+      const list = getWorkCases();
+      if (!selectedWorkId || !list.some(record => record.id === selectedWorkId)) selectedWorkId = list[0]?.id || "";
+      document.getElementById("viewWork").innerHTML = `
+        ${isReviewer() ? renderCaseUploadPanel() : ""}
+        <div class="layout">
+          <div class="list-panel">
+            <div class="panel-title">
+              <span>Casos</span>
+              <span class="pill status">${list.length}</span>
+            </div>
+            <div class="list-search">
+              <input class="search-input" value="${escapeHtml(workSearch)}" oninput="setWorkSearch(this.value)" placeholder="Buscar SKU(s), caso o marca" />
+            </div>
+            <div class="case-list">
+              ${list.length ? list.map(record => renderCaseItem(record, selectedWorkId, "selectWorkCase")).join("") : `<div class="empty">Sin casos.</div>`}
+            </div>
+          </div>
+          <div class="detail-panel"><div class="detail-content" id="workDetail"></div></div>
+        </div>
+      `;
+      renderWorkDetail();
+    }
+
+    function renderCaseUploadPanel() {
+      return `
+        <div class="manual-panel">
+          <div class="manual-title">
+            <h2>Cargar caso</h2>
+            <div class="actions">
+              <button class="btn btn-soft" onclick="downloadCaseTemplate()">Plantilla</button>
+            </div>
+          </div>
+          <label class="upload-box" for="caseExcelInput">
+            <strong>Subir Excel del caso</strong>
+            <small>El número de caso se lee desde el nombre del archivo. SKU columna J, Marca columna G.</small>
+          </label>
+          <input id="caseExcelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleCaseExcel(event)" />
+        </div>
+      `;
+    }
+
+    function selectWorkCase(idRaw) {
+      selectedWorkId = decodeURIComponent(idRaw || "");
+      renderWork();
+    }
+    function setWorkSearch(value) { workSearch = value; renderWork(); }
+
+    function renderWorkDetail() {
+      const el = document.getElementById("workDetail");
+      if (!el) return;
+      const record = cases.find(c => c.id === selectedWorkId);
+      if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
+      const skus = record.skus || [];
+      const brands = record.brands || [];
+      const pendingRejected = record.pendingRejected || [];
+      const active = getActiveImages(record.id);
+      const approved = getApprovedImages(record.id);
+      const revision = getRevisionImages(record.id);
+      const rejected = getRejectedImages(record.id);
+      el.innerHTML = `
+        <div class="detail-header">
+          <div><h2>Caso ${escapeHtml(record.caseNumber || record.id)}</h2><small>${escapeHtml(brands.join(", ") || "Sin marca")} · ${skus.length} SKU</small></div>
+          ${statusPill(record.estado || STATUS.PENDIENTE)}
+        </div>
+        <div class="info-grid">
+          <div class="info-box"><small>Post</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
+          <div class="info-box"><small>SKU</small><span>${skus.length}</span></div>
+          <div class="info-box"><small>Activas</small><span>${active.length}</span></div>
+          <div class="info-box"><small>Faltantes</small><span>${pendingRejected.length}</span></div>
+        </div>
+        ${pendingRejected.length ? `
+          <div class="section-block">
+            <div class="section-head"><div><strong>Correcciones pendientes</strong><br><small>SKU_VISTA rechazados</small></div></div>
+            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(item.sku)}_${escapeHtml(item.view)}</span>`).join("")}</div>
+          </div>` : ""}
+        <div class="section-block">
+          <div class="section-head"><div><strong>Especificaciones por marca</strong><br><small>Referencia para post producción</small></div></div>
+          ${renderSpecsForBrands(brands)}
+        </div>
+        <div class="section-block">
+          <div class="section-head"><div><strong>SKU del caso</strong><br><small>Marca y estado por vistas</small></div></div>
+          <div class="sku-grid">${skus.map(row => renderSkuCard(record, row)).join("")}</div>
+        </div>
+        <div class="actions">
+          ${canTakeCase(record) ? `<button class="btn btn-primary" onclick="takeCase('${encodeForInline(record.id)}')">Tomar caso</button>` : ""}
+          ${canOpenUpload(record) ? `<button class="btn btn-blue" onclick="openUploadForCase('${encodeForInline(record.id)}')">Subir trabajado</button>` : ""}
+          ${isAdmin() ? `<button class="btn btn-red" onclick="deleteCase('${encodeForInline(record.id)}')">Eliminar caso</button>` : ""}
+        </div>
+      `;
+    }
+
+    function renderSpecsForBrands(brands) {
+      const list = brands.map(brand => specs.find(spec => normalizeBrand(spec.brand) === normalizeBrand(brand))).filter(Boolean);
+      if (!list.length) return `<div class="empty">Sin especificaciones cargadas para esta marca.</div>`;
+      return `<div class="spec-list">${list.map(renderSpecCard).join("")}</div>`;
+    }
+    function renderSpecCard(spec) {
+      return `
+        <div class="spec-card">
+          <h3>${escapeHtml(spec.brand)}</h3>
+          <p>${escapeHtml(spec.notes || "Sin texto")}</p>
+          ${spec.images?.length ? `<div class="spec-images">${spec.images.map(img => `<img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.name || spec.brand)}" onclick="openImageModal('${encodeForInline(img.url)}')">`).join("")}</div>` : ""}
+        </div>`;
+    }
+
+    function renderSkuCard(record, row) {
+      const skuImgs = getCaseImages(record.id).filter(img => normalizeSku(img.sku) === normalizeSku(row.sku));
+      const tags = skuImgs.length ? skuImgs.map(img => {
+        const cls = img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : "";
+        return `<span class="view-tag ${cls}">${escapeHtml(img.view)} · ${escapeHtml(img.status)}</span>`;
+      }).join("") : `<span class="view-tag">Sin imágenes</span>`;
+      return `
+        <div class="sku-card">
+          <strong>${escapeHtml(row.sku)}</strong>
+          <span>${escapeHtml(row.brand || "Sin marca")}</span>
+          <span>${escapeHtml(row.description || "")}</span>
+          <div class="view-tags">${tags}</div>
+        </div>`;
+    }
+
+    function canTakeCase(record) {
+      if (!currentUser() || currentRole() === ROLES.REVISOR) return false;
+      if (record.editor && record.editor !== currentUser() && !isAdmin()) return false;
+      return [STATUS.PENDIENTE, STATUS.RECHAZADO, STATUS.TRABAJO].includes(record.estado || STATUS.PENDIENTE);
+    }
+    function canOpenUpload(record) {
+      if (!currentUser()) return false;
+      if (isAdmin()) return Boolean(record.editor);
+      return currentRole() === ROLES.RETOCADOR && record.editor === currentUser();
+    }
+
+    async function handleCaseExcel(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      if (!isReviewer()) return alert("Solo admin o revisores pueden cargar casos.");
+      const caseNumber = extractCaseNumber(file.name);
+      if (!caseNumber) return alert("No se pudo leer el número de caso desde el nombre del archivo.");
+      try {
+        const rows = await readWorkbookRows(file);
+        if (!rows.length) return alert("Excel sin datos.");
+        const skus = rows.map((row, index) => {
+          const sku = normalizeSku(row[9]);
+          if (!sku) return null;
+          return {
+            sku,
+            brand: String(row[6] || "").trim(),
+            subclase: String(row[8] || "").trim(),
+            description: String(row[1] || "").trim(),
+            line: String(row[0] || "").trim(),
+            model: String(row[7] || "").trim(),
+            originalRow: index + 2
+          };
+        }).filter(Boolean);
+        if (!skus.length) return alert("No se encontraron SKU en la columna J.");
+        const unique = [];
+        const seen = new Set();
+        skus.forEach(item => { if (!seen.has(item.sku)) { seen.add(item.sku); unique.push(item); } });
+        const brands = [...new Set(unique.map(item => item.brand).filter(Boolean).map(normalizeBrand))];
+        const now = new Date().toISOString();
+        const id = caseNumber;
+        const existing = cases.find(c => c.id === id);
+        const record = {
+          id,
+          caseNumber,
+          estado: existing?.estado || STATUS.PENDIENTE,
+          editor: existing?.editor || "",
+          brands,
+          skus: unique,
+          skuCount: unique.length,
+          fileName: file.name,
+          createdAt: existing?.createdAt || now,
+          createdBy: existing?.createdBy || currentUser(),
+          updatedAt: now,
+          updatedBy: currentUser(),
+          pendingRejected: existing?.pendingRejected || [],
+          availableUntil: existing?.availableUntil || ""
+        };
+        await setDoc(caseRef(id), record, { merge: true });
+        selectedWorkId = id;
+        toast(`Caso ${caseNumber} cargado (${unique.length} SKU).`);
+      } catch (err) {
+        console.error(err);
+        alert("No se pudo leer el Excel.");
+      }
+    }
+
+    function extractCaseNumber(fileName) {
+      const base = String(fileName || "").replace(/\.[^.]+$/, "");
+      const match = base.match(/\d+/);
+      return match ? match[0] : "";
+    }
+
+    function readWorkbookRows(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            resolve(matrix.slice(1).filter(row => row.some(cell => String(cell).trim())));
+          } catch (err) { reject(err); }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function downloadCaseTemplate() {
+      const rows = [["Línea", "Descripción", "¿Fotografiar producto?", "Enviar a post prod", "Set de fotografía", "Pais", "Marca", "Modelo", "Subclase", "SKU", "EAN", "Caso creado"]];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Caso");
+      XLSX.writeFile(wb, `plantilla_protocolo2_${dateStamp()}.xlsx`);
+    }
+
+    async function takeCase(idRaw) {
+      const id = decodeURIComponent(idRaw || "");
+      const record = cases.find(c => c.id === id);
+      if (!record || !canTakeCase(record)) return;
+      const now = new Date().toISOString();
+      await updateDoc(caseRef(id), { editor: currentUser(), estado: STATUS.TRABAJO, takenAt: record.takenAt || now, updatedAt: now, updatedBy: currentUser() });
+      selectedUploadId = id;
+      activeTab = "upload";
+      toast(`Caso ${record.caseNumber} tomado.`);
+      refresh();
+    }
+
+    function openUploadForCase(idRaw) {
+      selectedUploadId = decodeURIComponent(idRaw || "");
+      activeTab = "upload";
+      refresh();
+    }
+
+    async function deleteCase(idRaw) {
+      if (!isAdmin()) return;
+      const id = decodeURIComponent(idRaw || "");
+      const record = cases.find(c => c.id === id);
+      if (!record) return;
+      if (!confirm(`¿Eliminar caso ${record.caseNumber}?`)) return;
+      const imgs = getCaseImages(id);
+      for (const img of imgs) {
+        if (img.path) await deleteObject(storageRef(storage, img.path)).catch(() => null);
+        await deleteDoc(imageRef(img.id)).catch(() => null);
+      }
+      await deleteDoc(caseRef(id));
+      selectedWorkId = "";
+      toast("Caso eliminado.");
+    }
+
+    function getUploadCases() {
+      if (isAdmin()) return cases.filter(c => c.editor && ![STATUS.REVISION, STATUS.COMPLETADO, STATUS.DESCARGADO].includes(c.estado));
+      return cases.filter(c => c.editor === currentUser() && ![STATUS.REVISION, STATUS.COMPLETADO, STATUS.DESCARGADO].includes(c.estado));
+    }
+
+    function renderUpload() {
+      const list = getUploadCases();
+      if (!selectedUploadId || !list.some(record => record.id === selectedUploadId)) selectedUploadId = list[0]?.id || "";
+      document.getElementById("viewUpload").innerHTML = `
+        <div class="layout">
+          <div class="list-panel">
+            <div class="panel-title"><span>Casos asignados</span><span class="pill status">${list.length}</span></div>
+            <div class="case-list">${list.length ? list.map(record => renderCaseItem(record, selectedUploadId, "selectUploadCase")).join("") : `<div class="empty">Sin casos asignados.</div>`}</div>
+          </div>
+          <div class="detail-panel"><div class="detail-content" id="uploadDetail"></div></div>
+        </div>
+      `;
+      renderUploadDetail();
+    }
+
+    function selectUploadCase(idRaw) { selectedUploadId = decodeURIComponent(idRaw || ""); renderUpload(); }
+
+    function renderUploadDetail() {
+      const record = cases.find(c => c.id === selectedUploadId);
+      const el = document.getElementById("uploadDetail");
+      if (!el) return;
+      if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
+      const pendingRejected = record.pendingRejected || [];
+      el.innerHTML = `
+        <div class="detail-header">
+          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${escapeHtml((record.brands || []).join(", "))} · Post: ${escapeHtml(record.editor || "")}</small></div>
+          ${statusPill(record.estado)}
+        </div>
+        ${pendingRejected.length ? `
+          <div class="section-block">
+            <div class="section-head"><div><strong>Subir correcciones</strong><br><small>Faltan estos SKU_VISTA</small></div></div>
+            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(item.sku)}_${escapeHtml(item.view)}</span>`).join("")}</div>
+          </div>` : ""}
+        <label id="workedDrop" class="upload-box" for="workedInput">
+          <strong>Arrastra o sube imágenes trabajadas</strong>
+          <small>Nombre esperado: SKU_VISTA. Ejemplo: 123456789_01.png</small>
+        </label>
+        <input id="workedInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
+        <div class="section-block">
+          <div class="section-head"><div><strong>Match actual</strong><br><small>SKU y vistas detectadas</small></div></div>
+          ${renderCaseMatchTable(record)}
+        </div>
+      `;
+      setupDropZone(record.id);
+    }
+
+    function setupDropZone(caseId) {
+      const box = document.getElementById("workedDrop");
+      if (!box) return;
+      box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("drag-over"); });
+      box.addEventListener("dragleave", () => box.classList.remove("drag-over"));
+      box.addEventListener("drop", e => {
+        e.preventDefault();
+        box.classList.remove("drag-over");
+        const files = [...(e.dataTransfer?.files || [])];
+        processWorkedFiles(caseId, files);
+      });
+    }
+
+    function renderCaseMatchTable(record) {
+      const rows = record.skus || [];
+      return `
+        <div class="match-table-wrap">
+          <table class="table">
+            <thead><tr><th>SKU</th><th>Marca</th><th>Vistas</th><th>Aceptadas</th><th>Revisión</th><th>Rechazadas</th></tr></thead>
+            <tbody>
+              ${rows.map(row => {
+                const imgs = getCaseImages(record.id).filter(img => normalizeSku(img.sku) === normalizeSku(row.sku));
+                const approved = imgs.filter(img => img.status === IMG_STATUS.APROBADO).length;
+                const revision = imgs.filter(img => img.status === IMG_STATUS.REVISION && img.active !== false).length;
+                const rejected = imgs.filter(img => img.status === IMG_STATUS.RECHAZADO).length;
+                const tags = imgs.length ? imgs.map(img => `<span class="view-tag ${img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : ""}">${escapeHtml(img.view)}</span>`).join("") : `<span class="muted">Sin match</span>`;
+                return `<tr><td><strong>${escapeHtml(row.sku)}</strong></td><td>${escapeHtml(row.brand || "")}</td><td><div class="view-tags">${tags}</div></td><td>${approved}</td><td>${revision}</td><td>${rejected}</td></tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    async function handleWorkedUpload(event, caseIdRaw) {
+      const files = [...(event.target.files || [])];
+      event.target.value = "";
+      await processWorkedFiles(decodeURIComponent(caseIdRaw || selectedUploadId || ""), files);
+    }
+
+    async function processWorkedFiles(caseId, files) {
+      const record = cases.find(c => c.id === caseId);
+      if (!record || !files.length) return;
+      if (!canOpenUpload(record)) return alert("No puedes subir imágenes en este caso.");
+      if (uploadProcessing) return alert("Ya hay una subida en proceso.");
+
+      const skuSet = new Set((record.skus || []).map(row => normalizeSku(row.sku)));
+      const parsed = files.map(file => ({ file, parsed: parseImageFileName(file.name), error: validateUploadFile(file) }));
+      parsed.forEach(item => {
+        if (!item.error && (!item.parsed.sku || !item.parsed.view)) item.error = "Nombre inválido";
+        if (!item.error && !skuSet.has(item.parsed.sku)) item.error = "SKU no pertenece al caso";
+      });
+      const errors = parsed.filter(item => item.error);
+      if (errors.length) {
+        alert(errors.map(item => `${item.file.name}: ${item.error}`).join("\n"));
+        return;
+      }
+
+      uploadProcessing = true;
+      try {
+        const now = new Date().toISOString();
+        for (let i = 0; i < parsed.length; i++) {
+          const { file, parsed: meta } = parsed[i];
+          await deactivatePreviousActiveRevision(caseId, meta.sku, meta.view);
+          const imageId = `${caseId}_${meta.sku}_${meta.view}_${Date.now()}_${i}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+          const ext = fileExtension(file.name) || "png";
+          const finalName = `${meta.sku}_${meta.view}.${ext}`;
+          const path = `${STORAGE_ROOT}/trabajado/${caseId}/${imageId}_${safeFileName(finalName)}`;
+          const contentType = uploadContentType(file);
+          await uploadBytes(storageRef(storage, path), file, { contentType });
+          const url = await getDownloadURL(storageRef(storage, path));
+          await setDoc(imageRef(imageId), {
+            id: imageId,
+            caseId,
+            caseNumber: record.caseNumber,
+            sku: meta.sku,
+            view: meta.view,
+            fileName: finalName,
+            originalName: file.name,
+            path,
+            url,
+            size: file.size,
+            type: contentType,
+            status: IMG_STATUS.REVISION,
+            active: true,
+            uploadedAt: now,
+            uploadedBy: currentUser(),
+            reviewedAt: "",
+            reviewedBy: "",
+            rejectReason: ""
+          });
+        }
+        const pendingRejected = removePendingForUploads(record.pendingRejected || [], parsed.map(item => item.parsed));
+        await updateDoc(caseRef(caseId), { estado: STATUS.REVISION, pendingRejected, updatedAt: now, updatedBy: currentUser() });
+        selectedReviewId = caseId;
+        toast(`${parsed.length} imagen(es) subidas a revisión.`);
+      } catch (err) {
+        console.error(err);
+        alert("No se pudo subir una o más imágenes.");
+      } finally {
+        uploadProcessing = false;
+      }
+    }
+
+    function removePendingForUploads(pending, uploaded) {
+      const uploadedKeys = new Set(uploaded.map(item => `${item.sku}__${item.view}`));
+      return pending.filter(item => !uploadedKeys.has(`${normalizeSku(item.sku)}__${String(item.view || "").trim()}`));
+    }
+
+    async function deactivatePreviousActiveRevision(caseId, sku, view) {
+      const previous = images.filter(img => img.caseId === caseId && normalizeSku(img.sku) === sku && String(img.view) === String(view) && img.active !== false && img.status !== IMG_STATUS.APROBADO);
+      for (const img of previous) await updateDoc(imageRef(img.id), { active: false, replacedAt: new Date().toISOString(), replacedBy: currentUser() }).catch(() => null);
+    }
+
+    function parseImageFileName(name) {
+      const base = String(name || "").replace(/\.[^.]+$/, "").trim();
+      const match = base.match(/^(.+)_([^_]+)$/);
+      if (!match) return { sku: "", view: "" };
+      return { sku: normalizeSku(match[1]), view: String(match[2] || "").trim().toUpperCase() };
+    }
+    function fileExtension(name = "") { const parts = String(name).split("."); return parts.length > 1 ? parts.pop().toLowerCase() : ""; }
+    function uploadContentType(file) {
+      const type = String(file.type || "").toLowerCase();
+      if (ALLOWED_UPLOAD_MIME_TYPES.includes(type)) return type;
+      const ext = fileExtension(file.name);
+      const byExt = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
+      return byExt[ext] || "application/octet-stream";
+    }
+    function validateUploadFile(file) {
+      const ext = fileExtension(file.name);
+      const type = uploadContentType(file);
+      if (!ALLOWED_UPLOAD_EXTENSIONS.includes(ext) && !ALLOWED_UPLOAD_MIME_TYPES.includes(type)) return "Formato no permitido";
+      if (file.size > MAX_UPLOAD_SIZE_BYTES) return "Archivo supera 15 MB";
+      return "";
+    }
+
+    function getReviewCases() {
+      return cases.filter(c => getRevisionImages(c.id).length > 0);
+    }
+
+    function renderReview() {
+      const list = getReviewCases();
+      if (!selectedReviewId || !list.some(record => record.id === selectedReviewId)) selectedReviewId = list[0]?.id || "";
+      document.getElementById("viewReview").innerHTML = `
+        <div class="layout">
+          <div class="list-panel">
+            <div class="panel-title"><span>Casos en revisión</span><span class="pill status">${list.length}</span></div>
+            <div class="case-list">${list.length ? list.map(record => renderCaseItem(record, selectedReviewId, "selectReviewCase")).join("") : `<div class="empty">Sin imágenes en revisión.</div>`}</div>
+          </div>
+          <div class="detail-panel"><div class="detail-content" id="reviewDetail"></div></div>
+        </div>
+      `;
+      renderReviewDetail();
+    }
+
+    function selectReviewCase(idRaw) { selectedReviewId = decodeURIComponent(idRaw || ""); renderReview(); }
+
+    function renderReviewDetail() {
+      const record = cases.find(c => c.id === selectedReviewId);
+      const el = document.getElementById("reviewDetail");
+      if (!el) return;
+      if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
+      const imgs = getRevisionImages(record.id).sort((a, b) => normalizeSku(a.sku).localeCompare(normalizeSku(b.sku)) || String(a.view).localeCompare(String(b.view)));
+      el.innerHTML = `
+        <div class="detail-header">
+          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${imgs.length} imagen(es) en revisión</small></div>
+          ${statusPill(record.estado)}
+        </div>
+        <div class="actions" style="margin-bottom:14px;">
+          <button class="btn btn-primary" onclick="approveSelectedReview('${encodeForInline(record.id)}')">Aceptar seleccionadas</button>
+          <button class="btn btn-soft" onclick="toggleAllReviewImages(true)">Seleccionar todo</button>
+          <button class="btn btn-soft" onclick="toggleAllReviewImages(false)">Limpiar</button>
+        </div>
+        <div class="image-grid">
+          ${imgs.map(img => renderReviewImageCard(img)).join("")}
+        </div>
+      `;
+    }
+
+    function renderReviewImageCard(img) {
+      return `
+        <div class="image-card">
+          <div class="image-card-head">
+            <label><input type="checkbox" class="review-check" value="${escapeHtml(img.id)}" checked> Seleccionar</label>
+            <span>${escapeHtml(img.sku)}_${escapeHtml(img.view)}</span>
+          </div>
+          <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}" onclick="openImageModal('${encodeForInline(img.url)}')">
+          <div class="image-card-body">
+            <div class="muted">${escapeHtml(img.fileName)} · ${formatDate(img.uploadedAt)}</div>
+            <div class="reject-box"><textarea id="reject_${escapeHtml(img.id)}" placeholder="Motivo rechazo"></textarea></div>
+            <div class="actions">
+              <button class="btn btn-primary btn-small" onclick="approveImage('${encodeForInline(img.id)}')">Aceptar</button>
+              <button class="btn btn-red btn-small" onclick="rejectImage('${encodeForInline(img.id)}')">Rechazar</button>
+              <button class="btn btn-soft btn-small" onclick="discardImage('${encodeForInline(img.id)}')">Descartar</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function toggleAllReviewImages(checked) {
+      document.querySelectorAll(".review-check").forEach(input => { input.checked = checked; });
+    }
+
+    async function approveSelectedReview(caseIdRaw) {
+      const ids = [...document.querySelectorAll(".review-check:checked")].map(input => input.value);
+      if (!ids.length) return alert("No hay imágenes seleccionadas.");
+      for (const id of ids) await approveImage(encodeURIComponent(id), true);
+      await recomputeCaseState(decodeURIComponent(caseIdRaw || ""));
+      toast(`${ids.length} imagen(es) aceptadas.`);
+    }
+
+    async function approveImage(idRaw, silent = false) {
+      const id = decodeURIComponent(idRaw || "");
+      const img = images.find(item => item.id === id);
+      if (!img || !isReviewer()) return;
+      const now = new Date().toISOString();
+      await updateDoc(imageRef(id), { status: IMG_STATUS.APROBADO, active: true, reviewedAt: now, reviewedBy: currentUser(), rejectReason: "" });
+      await recomputeCaseState(img.caseId);
+      if (!silent) toast("Imagen aceptada.");
+    }
+
+    async function rejectImage(idRaw) {
+      const id = decodeURIComponent(idRaw || "");
+      const img = images.find(item => item.id === id);
+      if (!img || !isReviewer()) return;
+      const reason = document.getElementById(`reject_${id}`)?.value.trim() || "Rechazado sin motivo";
+      const now = new Date().toISOString();
+      await updateDoc(imageRef(id), { status: IMG_STATUS.RECHAZADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
+      const record = cases.find(c => c.id === img.caseId);
+      const pending = upsertPending(record?.pendingRejected || [], { sku: img.sku, view: img.view, reason, rejectedAt: now, rejectedBy: currentUser() });
+      await updateDoc(caseRef(img.caseId), { estado: STATUS.RECHAZADO, pendingRejected: pending, updatedAt: now, updatedBy: currentUser() });
+      toast("Imagen rechazada. Vuelve al caso del post.");
+    }
+
+    async function discardImage(idRaw) {
+      const id = decodeURIComponent(idRaw || "");
+      const img = images.find(item => item.id === id);
+      if (!img || !isReviewer()) return;
+      const reason = document.getElementById(`reject_${id}`)?.value.trim() || "Descartado";
+      const now = new Date().toISOString();
+      await updateDoc(imageRef(id), { status: IMG_STATUS.DESCARTADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
+      await recomputeCaseState(img.caseId);
+      toast("Imagen descartada.");
+    }
+
+    function upsertPending(pending, item) {
+      const key = `${normalizeSku(item.sku)}__${String(item.view)}`;
+      const clean = pending.filter(p => `${normalizeSku(p.sku)}__${String(p.view)}` !== key);
+      clean.push({ sku: normalizeSku(item.sku), view: String(item.view), reason: item.reason || "", rejectedAt: item.rejectedAt || new Date().toISOString(), rejectedBy: item.rejectedBy || currentUser() });
+      return clean;
+    }
+
+    async function recomputeCaseState(caseId) {
+      const record = cases.find(c => c.id === caseId);
+      if (!record) return;
+      const pending = record.pendingRejected || [];
+      const rev = getRevisionImages(caseId).filter(img => img.status === IMG_STATUS.REVISION);
+      const approved = getApprovedImages(caseId);
+      let estado = record.estado || STATUS.PENDIENTE;
+      if (rev.length) estado = STATUS.REVISION;
+      else if (pending.length) estado = STATUS.RECHAZADO;
+      else if (isCaseComplete(record, approved)) estado = STATUS.COMPLETADO;
+      else if (record.editor) estado = STATUS.TRABAJO;
+      else estado = STATUS.PENDIENTE;
+      const patch = { estado, updatedAt: new Date().toISOString(), updatedBy: currentUser() };
+      if (estado === STATUS.COMPLETADO && !record.availableUntil) patch.availableUntil = addDaysIso(7);
+      await updateDoc(caseRef(caseId), patch).catch(() => null);
+    }
+
+    function isCaseComplete(record, approvedImages = getApprovedImages(record.id)) {
+      const skus = record.skus || [];
+      if (!skus.length || !approvedImages.length) return false;
+      const approvedBySku = new Set(approvedImages.map(img => normalizeSku(img.sku)));
+      return skus.every(row => approvedBySku.has(normalizeSku(row.sku))) && !(record.pendingRejected || []).length && !getRevisionImages(record.id).length;
+    }
+
+    function getMasterCases() {
+      const terms = splitSearchTerms(masterSearch);
+      return cases.filter(record => {
+        const statusOk = [STATUS.COMPLETADO, STATUS.DESCARGADO].includes(record.estado);
+        if (!statusOk) return false;
+        return caseMatchesTerms(record, terms);
+      });
+    }
+
+    function renderMaster() {
+      const list = getMasterCases();
+      document.getElementById("viewMaster").innerHTML = `
+        <div class="master-panel">
+          <div class="panel-title">
+            <span>Master</span>
+            <span class="pill status">${list.length}</span>
+          </div>
+          <div class="master-filter-bar">
+            <input class="search-input" value="${escapeHtml(masterSearch)}" oninput="setMasterSearch(this.value)" placeholder="Buscar caso o SKU(s) separados por espacio/coma" />
+            <button class="btn btn-soft" onclick="exportMasterExcel()">Exportar Excel</button>
+            ${isAdmin() ? `<button class="btn btn-red" onclick="cleanExpiredFiles()">Limpiar vencidos</button>` : ""}
+          </div>
+          <div class="match-table-wrap">
+            <table class="table">
+              <thead><tr><th>Caso</th><th>Marca</th><th>Post</th><th>SKU</th><th>Imágenes</th><th>Disponible hasta</th><th>Acciones</th></tr></thead>
+              <tbody>
+                ${list.length ? list.map(record => {
+                  const approved = getApprovedImages(record.id).length;
+                  return `<tr>
+                    <td><strong>${escapeHtml(record.caseNumber)}</strong><br>${statusPill(record.estado)}</td>
+                    <td>${escapeHtml((record.brands || []).join(", "))}</td>
+                    <td>${escapeHtml(record.editor || "")}</td>
+                    <td>${(record.skus || []).length}</td>
+                    <td>${approved}</td>
+                    <td>${formatDate(record.availableUntil)}</td>
+                    <td><div class="actions">
+                      <button class="btn btn-primary btn-small" onclick="downloadCaseZip('${encodeForInline(record.id)}')">Descargar ZIP</button>
+                      <button class="btn btn-soft btn-small" onclick="openHistoryViewer('${encodeForInline(record.id)}')">Ver historial</button>
+                    </div></td>
+                  </tr>`;
+                }).join("") : `<tr><td colspan="7" class="empty">Sin casos en master.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function setMasterSearch(value) { masterSearch = value; renderMaster(); }
+
+    async function downloadCaseZip(caseIdRaw) {
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const record = cases.find(c => c.id === caseId);
+      if (!record) return;
+      const approved = getApprovedImages(caseId).sort((a, b) => normalizeSku(a.sku).localeCompare(normalizeSku(b.sku)) || String(a.view).localeCompare(String(b.view)));
+      if (!approved.length) return alert("No hay imágenes aceptadas para descargar.");
+      const zip = new JSZip();
+      for (const img of approved) {
+        try {
+          const res = await fetch(img.url);
+          const blob = await res.blob();
+          const ext = fileExtension(img.fileName) || "png";
+          zip.file(`${safeFileName(img.sku)}_${safeFileName(img.view)}.${ext}`, blob);
+        } catch (err) { console.error(err); }
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, `caso_${safeFileName(record.caseNumber)}_${dateStamp()}.zip`);
+      const until = record.availableUntil || addDaysIso(7);
+      await updateDoc(caseRef(caseId), { estado: STATUS.DESCARGADO, downloadedAt: new Date().toISOString(), downloadedBy: currentUser(), availableUntil: until, updatedAt: new Date().toISOString(), updatedBy: currentUser() });
+    }
+
+    function openHistoryViewer(caseIdRaw) {
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const record = cases.find(c => c.id === caseId);
+      if (!record) return;
+      historyTab = "accepted";
+      renderHistoryModal(record);
+    }
+
+    function renderHistoryModal(record) {
+      const modal = document.getElementById("historyModal");
+      const all = getCaseImages(record.id);
+      const groups = {
+        accepted: all.filter(img => img.status === IMG_STATUS.APROBADO),
+        rejected: all.filter(img => img.status === IMG_STATUS.RECHAZADO),
+        discarded: all.filter(img => img.status === IMG_STATUS.DESCARTADO),
+        review: all.filter(img => img.status === IMG_STATUS.REVISION)
+      };
+      const labels = { accepted: "Aceptado", rejected: "Rechazado", discarded: "Descartado", review: "En revisión" };
+      modal.classList.remove("hidden");
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div class="modal-head">
+            <strong>Historial caso ${escapeHtml(record.caseNumber)}</strong>
+            <button class="modal-close" onclick="closeHistoryModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="history-tabs">
+              ${Object.keys(groups).map(key => `<button class="tab ${historyTab === key ? "active" : ""}" onclick="setHistoryTab('${key}', '${encodeForInline(record.id)}')">${labels[key]} (${groups[key].length})</button>`).join("")}
+            </div>
+            <div class="history-section">
+              ${groups[historyTab].length ? `<div class="image-grid">${groups[historyTab].map(renderHistoryImageCard).join("")}</div>` : `<div class="empty">Sin imágenes.</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHistoryImageCard(img) {
+      return `
+        <div class="image-card">
+          <div class="image-card-head"><span>${escapeHtml(img.sku)}_${escapeHtml(img.view)}</span>${statusPill(img.status)}</div>
+          <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}" onclick="openImageModal('${encodeForInline(img.url)}')">
+          <div class="image-card-body">
+            <div class="muted">Subido: ${formatDate(img.uploadedAt)} · ${escapeHtml(img.uploadedBy || "")}</div>
+            <div class="muted">Revisión: ${formatDate(img.reviewedAt)} · ${escapeHtml(img.reviewedBy || "")}</div>
+            ${img.rejectReason ? `<div>${escapeHtml(img.rejectReason)}</div>` : ""}
+          </div>
+        </div>`;
+    }
+
+    function setHistoryTab(tab, caseIdRaw) {
+      historyTab = tab;
+      const record = cases.find(c => c.id === decodeURIComponent(caseIdRaw || ""));
+      if (record) renderHistoryModal(record);
+    }
+    function closeHistoryModal() { document.getElementById("historyModal").classList.add("hidden"); }
+
+    async function cleanExpiredFiles() {
+      if (!isAdmin()) return;
+      const now = new Date();
+      const expired = cases.filter(c => c.availableUntil && new Date(c.availableUntil) < now);
+      if (!expired.length) return alert("No hay casos vencidos.");
+      if (!confirm(`Se eliminarán imágenes de ${expired.length} caso(s) vencidos. ¿Continuar?`)) return;
+      for (const record of expired) {
+        const imgs = getCaseImages(record.id);
+        for (const img of imgs) {
+          if (img.path) await deleteObject(storageRef(storage, img.path)).catch(() => null);
+          await updateDoc(imageRef(img.id), { url: "", path: "", fileDeletedAt: new Date().toISOString(), fileDeletedBy: currentUser() }).catch(() => null);
+        }
+      }
+      toast("Limpieza completada.");
+    }
+
+    function renderSpecs() {
+      document.getElementById("viewSpecs").innerHTML = `
+        ${isReviewer() ? `
+        <div class="manual-panel">
+          <div class="manual-title"><h2>Especificaciones</h2></div>
+          <div class="manual-grid">
+            <div class="field"><label>Marca</label><input id="specBrand" placeholder="Marca" /></div>
+            <div class="field" style="grid-column: span 2;"><label>Texto</label><textarea id="specNotes" placeholder="Especificaciones para post producción"></textarea></div>
+          </div>
+          <label class="upload-box" for="specImagesInput" style="margin-top:12px;">
+            <strong>Agregar imágenes de referencia</strong>
+            <small>Opcional. Se guardan por marca.</small>
+          </label>
+          <input id="specImagesInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple />
+          <div class="actions"><button class="btn btn-primary" onclick="saveSpec()">Guardar especificación</button></div>
+        </div>` : ""}
+        <div class="master-panel">
+          <div class="panel-title"><span>Especificaciones cargadas</span><span class="pill status">${specs.length}</span></div>
+          <div class="detail-content">
+            ${specs.length ? `<div class="spec-list">${specs.map(spec => `
+              <div class="spec-card">
+                <div class="section-head">
+                  <div><h3>${escapeHtml(spec.brand)}</h3><small>${formatDate(spec.updatedAt)}</small></div>
+                  ${isReviewer() ? `<div class="actions"><button class="btn btn-soft btn-small" onclick="editSpec('${encodeForInline(spec.id)}')">Editar</button><button class="btn btn-red btn-small" onclick="deleteSpec('${encodeForInline(spec.id)}')">Eliminar</button></div>` : ""}
+                </div>
+                <p>${escapeHtml(spec.notes || "Sin texto")}</p>
+                ${spec.images?.length ? `<div class="spec-images">${spec.images.map(img => `<img src="${escapeHtml(img.url)}" onclick="openImageModal('${encodeForInline(img.url)}')">`).join("")}</div>` : ""}
+              </div>`).join("")}</div>` : `<div class="empty">Sin especificaciones.</div>`}
+          </div>
+        </div>
+      `;
+    }
+
+    function editSpec(idRaw) {
+      const spec = specs.find(s => s.id === decodeURIComponent(idRaw || ""));
+      if (!spec) return;
+      document.getElementById("specBrand").value = spec.brand || "";
+      document.getElementById("specNotes").value = spec.notes || "";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function saveSpec() {
+      if (!isReviewer()) return;
+      const brand = normalizeBrand(document.getElementById("specBrand")?.value);
+      const notes = document.getElementById("specNotes")?.value.trim() || "";
+      const files = [...(document.getElementById("specImagesInput")?.files || [])];
+      if (!brand) return alert("Ingresa una marca.");
+      const id = safeFileName(brand);
+      const existing = specs.find(s => s.id === id) || {};
+      const now = new Date().toISOString();
+      const uploaded = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const err = validateUploadFile(file);
+        if (err) return alert(`${file.name}: ${err}`);
+        const imageId = `${id}_${Date.now()}_${i}`;
+        const path = `${STORAGE_ROOT}/especificaciones/${id}/${imageId}_${safeFileName(file.name)}`;
+        await uploadBytes(storageRef(storage, path), file, { contentType: uploadContentType(file) });
+        const url = await getDownloadURL(storageRef(storage, path));
+        uploaded.push({ id: imageId, name: file.name, path, url, uploadedAt: now, uploadedBy: currentUser() });
+      }
+      await setDoc(specRef(id), {
+        id,
+        brand,
+        notes,
+        images: [...(existing.images || []), ...uploaded],
+        createdAt: existing.createdAt || now,
+        createdBy: existing.createdBy || currentUser(),
+        updatedAt: now,
+        updatedBy: currentUser()
+      }, { merge: true });
+      document.getElementById("specBrand").value = "";
+      document.getElementById("specNotes").value = "";
+      document.getElementById("specImagesInput").value = "";
+      toast("Especificación guardada.");
+    }
+
+    async function deleteSpec(idRaw) {
+      if (!isReviewer()) return;
+      const id = decodeURIComponent(idRaw || "");
+      const spec = specs.find(s => s.id === id);
+      if (!spec) return;
+      if (!confirm(`¿Eliminar especificación ${spec.brand}?`)) return;
+      for (const img of spec.images || []) if (img.path) await deleteObject(storageRef(storage, img.path)).catch(() => null);
+      await deleteDoc(specRef(id));
+      toast("Especificación eliminada.");
+    }
+
+    function exportMasterExcel() {
+      const rows = [["CASO", "ESTADO", "POST", "MARCAS", "SKU", "IMAGENES_ACEPTADAS", "DESCARGADO", "DISPONIBLE_HASTA"]];
+      getMasterCases().forEach(record => rows.push([
+        record.caseNumber,
+        record.estado,
+        record.editor || "",
+        (record.brands || []).join(" | "),
+        (record.skus || []).length,
+        getApprovedImages(record.id).length,
+        record.downloadedAt || "",
+        record.availableUntil || ""
+      ]));
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Master protocolo 2");
+      XLSX.writeFile(wb, `master_protocolo2_${dateStamp()}.xlsx`);
+    }
+
+    function openImageModal(urlRaw) {
+      const url = decodeURIComponent(urlRaw || "");
+      if (!url) return;
+      const modal = document.getElementById("imageModal");
+      modal.innerHTML = `<img src="${escapeHtml(url)}" alt="Imagen">`;
+      modal.classList.remove("hidden");
+    }
+    function closeImageModal() {
+      const modal = document.getElementById("imageModal");
+      modal.classList.add("hidden");
+      modal.innerHTML = "";
+    }
+
+    function toast(message) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.style.display = "block";
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => { el.style.display = "none"; }, 2600);
+    }
+
+    window.toggleTheme = toggleTheme;
+    window.handleUserChange = handleUserChange;
+    window.setTab = setTab;
+    window.selectWorkCase = selectWorkCase;
+    window.setWorkSearch = setWorkSearch;
+    window.handleCaseExcel = handleCaseExcel;
+    window.downloadCaseTemplate = downloadCaseTemplate;
+    window.takeCase = takeCase;
+    window.openUploadForCase = openUploadForCase;
+    window.deleteCase = deleteCase;
+    window.selectUploadCase = selectUploadCase;
+    window.handleWorkedUpload = handleWorkedUpload;
+    window.selectReviewCase = selectReviewCase;
+    window.approveImage = approveImage;
+    window.rejectImage = rejectImage;
+    window.discardImage = discardImage;
+    window.approveSelectedReview = approveSelectedReview;
+    window.toggleAllReviewImages = toggleAllReviewImages;
+    window.setMasterSearch = setMasterSearch;
+    window.downloadCaseZip = downloadCaseZip;
+    window.openHistoryViewer = openHistoryViewer;
+    window.closeHistoryModal = closeHistoryModal;
+    window.setHistoryTab = setHistoryTab;
+    window.cleanExpiredFiles = cleanExpiredFiles;
+    window.saveSpec = saveSpec;
+    window.editSpec = editSpec;
+    window.deleteSpec = deleteSpec;
+    window.exportMasterExcel = exportMasterExcel;
+    window.openImageModal = openImageModal;
+    window.closeImageModal = closeImageModal;
 
     loadTheme();
+    initFirebase();
+    initUser();
   </script>
 </body>
 </html>
