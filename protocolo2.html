@@ -337,6 +337,46 @@
     .image-card-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--card2); display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; font-weight: 900; color: var(--muted); }
     .image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: white; cursor: zoom-in; }
     .image-card-body { padding: 12px; display: grid; gap: 8px; }
+
+    .review-sku-group {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card2);
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+    .review-sku-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .review-sku-head strong { font-size: 16px; font-weight: 900; }
+    .review-sku-head small { color: var(--muted); font-weight: 900; }
+    .review-image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .image-zoom-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: white;
+      overflow: hidden;
+      cursor: zoom-in;
+      border-bottom: 1px solid var(--border);
+    }
+    .image-zoom-frame img {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: auto;
+      object-fit: contain;
+      background: white;
+      display: block;
+      transition: transform .12s ease;
+      transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%);
+    }
+    .image-zoom-frame:hover img { transform: scale(2.15); }
+
     .reject-box textarea { width: 100%; min-height: 80px; resize: vertical; border: 1px solid var(--border); background: var(--card2); color: var(--text); border-radius: 12px; padding: 10px; outline: none; line-height: 1.35; }
 
     .master-filter-bar { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--card); display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; gap: 8px; align-items: center; }
@@ -396,6 +436,11 @@
       .case-list { max-height: none; }
       .master-filter-bar { grid-template-columns: 1fr; }
     }
+
+    @media (max-width: 900px) {
+      .review-image-grid { grid-template-columns: 1fr; }
+    }
+
   </style>
 </head>
 <body>
@@ -404,7 +449,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.0</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.1</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1268,9 +1313,10 @@
       if (!el) return;
       if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
       const imgs = getRevisionImages(record.id).sort((a, b) => normalizeSku(a.sku).localeCompare(normalizeSku(b.sku)) || String(a.view).localeCompare(String(b.view)));
+      const grouped = groupReviewImagesBySku(imgs);
       el.innerHTML = `
         <div class="detail-header">
-          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${imgs.length} imagen(es) en revisión</small></div>
+          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${imgs.length} imagen(es) en revisión · ${grouped.length} SKU(s)</small></div>
           ${statusPill(record.estado)}
         </div>
         <div class="actions" style="margin-bottom:14px;">
@@ -1278,10 +1324,34 @@
           <button class="btn btn-soft" onclick="toggleAllReviewImages(true)">Seleccionar todo</button>
           <button class="btn btn-soft" onclick="toggleAllReviewImages(false)">Limpiar</button>
         </div>
-        <div class="image-grid">
-          ${imgs.map(img => renderReviewImageCard(img)).join("")}
-        </div>
+        ${grouped.length ? grouped.map(group => `
+          <section class="review-sku-group">
+            <div class="review-sku-head">
+              <div>
+                <strong>SKU ${escapeHtml(group.sku)}</strong><br>
+                <small>${group.items.length} vista(s): ${group.items.map(img => escapeHtml(img.view)).join(" · ")}</small>
+              </div>
+              <span class="pill status">${group.items.length}</span>
+            </div>
+            <div class="review-image-grid">
+              ${group.items.map(img => renderReviewImageCard(img)).join("")}
+            </div>
+          </section>
+        `).join("") : `<div class="empty">Sin imágenes en revisión.</div>`}
       `;
+    }
+
+    function groupReviewImagesBySku(imgs) {
+      const map = new Map();
+      imgs.forEach(img => {
+        const sku = normalizeSku(img.sku) || String(img.sku || "");
+        if (!map.has(sku)) map.set(sku, []);
+        map.get(sku).push(img);
+      });
+      return [...map.entries()].map(([sku, items]) => ({
+        sku,
+        items: items.sort((a, b) => String(a.view).localeCompare(String(b.view), undefined, { numeric: true }))
+      }));
     }
 
     function renderReviewImageCard(img) {
@@ -1291,7 +1361,9 @@
             <label><input type="checkbox" class="review-check" value="${escapeHtml(img.id)}" checked> Seleccionar</label>
             <span>${escapeHtml(img.sku)}_${escapeHtml(img.view)}</span>
           </div>
-          <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}" onclick="openImageModal('${encodeForInline(img.url)}')">
+          <div class="image-zoom-frame" onmousemove="handleReviewImageZoom(event)" onclick="openImageModal('${encodeForInline(img.url)}')">
+            <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}">
+          </div>
           <div class="image-card-body">
             <div class="muted">${escapeHtml(img.fileName)} · ${formatDate(img.uploadedAt)}</div>
             <div class="reject-box"><textarea id="reject_${escapeHtml(img.id)}" placeholder="Motivo rechazo"></textarea></div>
@@ -1302,6 +1374,16 @@
             </div>
           </div>
         </div>`;
+    }
+
+    function handleReviewImageZoom(event) {
+      const frame = event.currentTarget;
+      if (!frame) return;
+      const rect = frame.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      frame.style.setProperty("--zoom-x", `${Math.max(0, Math.min(100, x))}%`);
+      frame.style.setProperty("--zoom-y", `${Math.max(0, Math.min(100, y))}%`);
     }
 
     function toggleAllReviewImages(checked) {
