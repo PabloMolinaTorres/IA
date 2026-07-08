@@ -482,7 +482,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.5</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.6</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -671,6 +671,29 @@
         .replace(/\s+/g, "_")
         .replace(/_+/g, "_")
         .replace(/^_+|_+$/g, "") || "archivo";
+    }
+    function normalizeFolderPath(value) {
+      return String(value || "")
+        .replace(/\\/g, "/")
+        .split("/")
+        .map(part => safeFileName(part.trim()))
+        .filter(Boolean)
+        .join("/");
+    }
+    function getFileFolderPath(file) {
+      const relative = String(file?.webkitRelativePath || "").replace(/\\/g, "/");
+      if (!relative || !relative.includes("/")) return "";
+      return normalizeFolderPath(relative.split("/").slice(0, -1).join("/"));
+    }
+    function deliveryKey(sku, view, folderPath = "") {
+      return `${normalizeFolderPath(folderPath)}__${normalizeSku(sku)}__${String(view || "").trim()}`;
+    }
+    function imageDeliveryKey(img) {
+      return deliveryKey(img?.sku, img?.view, img?.folderPath || "");
+    }
+    function deliveryDisplay(folderPath, sku, view) {
+      const folder = normalizeFolderPath(folderPath || "");
+      return `${folder ? `${folder}/` : ""}${normalizeSku(sku)}_${String(view || "").trim()}`;
     }
     function dateStamp() {
       const d = new Date();
@@ -954,7 +977,7 @@
         ${pendingRejected.length ? `
           <div class="section-block">
             <div class="section-head"><div><strong>Correcciones pendientes</strong><br><small>SKU_VISTA rechazados</small></div></div>
-            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(item.sku)}_${escapeHtml(item.view)}</span>`).join("")}</div>
+            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(deliveryDisplay(item.folderPath, item.sku, item.view))}</span>`).join("")}</div>
           </div>` : ""}
         <div class="section-block">
           <div class="section-head"><div><strong>Especificaciones por marca</strong><br><small>Referencia para post producción</small></div></div>
@@ -1071,7 +1094,7 @@
       const skuImgs = getCaseImages(record.id).filter(img => normalizeSku(img.sku) === normalizeSku(row.sku));
       const tags = skuImgs.length ? skuImgs.map(img => {
         const cls = img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : "";
-        return `<span class="view-tag ${cls}">${escapeHtml(img.view)} · ${escapeHtml(img.status)}</span>`;
+        return `<span class="view-tag ${cls}">${escapeHtml(img.folderPath ? `${img.folderPath}/${img.view}` : img.view)} · ${escapeHtml(img.status)}</span>`;
       }).join("") : `<span class="view-tag">Sin imágenes</span>`;
       return `
         <div class="sku-card">
@@ -1250,13 +1273,18 @@
         ${pendingRejected.length ? `
           <div class="section-block">
             <div class="section-head"><div><strong>Subir correcciones</strong><br><small>Faltan estos SKU_VISTA</small></div></div>
-            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(item.sku)}_${escapeHtml(item.view)}</span>`).join("")}</div>
+            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(deliveryDisplay(item.folderPath, item.sku, item.view))}</span>`).join("")}</div>
           </div>` : ""}
         <label id="workedDrop" class="upload-box" for="workedInput">
           <strong>Arrastra o sube imágenes trabajadas</strong>
-          <small>Nombre esperado: SKU_VISTA. Ejemplo: 123456789_01.png</small>
+          <small>Nombre esperado: SKU_VISTA. También puedes subir carpetas; se conservarán en el ZIP final.</small>
         </label>
         <input id="workedInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
+        <div class="actions" style="margin-top:10px;">
+          <label class="btn btn-soft" for="workedFolderInput">Subir carpeta</label>
+          <small class="muted">La carpeta se conserva en el ZIP final.</small>
+        </div>
+        <input id="workedFolderInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple webkitdirectory directory onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
         <div class="section-block">
           <div class="section-head"><div><strong>Match actual</strong><br><small>SKU y vistas detectadas</small></div></div>
           ${renderCaseMatchTable(record)}
@@ -1290,7 +1318,7 @@
                 const approved = imgs.filter(img => img.status === IMG_STATUS.APROBADO).length;
                 const revision = imgs.filter(img => img.status === IMG_STATUS.REVISION && img.active !== false).length;
                 const rejected = imgs.filter(img => img.status === IMG_STATUS.RECHAZADO).length;
-                const tags = imgs.length ? imgs.map(img => `<span class="view-tag ${img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : ""}">${escapeHtml(img.view)}</span>`).join("") : `<span class="muted">Sin match</span>`;
+                const tags = imgs.length ? imgs.map(img => `<span class="view-tag ${img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : ""}">${escapeHtml(img.folderPath ? `${img.folderPath}/${img.view}` : img.view)}</span>`).join("") : `<span class="muted">Sin match</span>`;
                 return `<tr><td><strong>${escapeHtml(row.sku)}</strong></td><td>${escapeHtml(row.brand || "")}</td><td><div class="view-tags">${tags}</div></td><td>${approved}</td><td>${revision}</td><td>${rejected}</td></tr>`;
               }).join("")}
             </tbody>
@@ -1311,14 +1339,29 @@
       if (uploadProcessing) return alert("Ya hay una subida en proceso.");
 
       const skuSet = new Set((record.skus || []).map(row => normalizeSku(row.sku)));
-      const parsed = files.map(file => ({ file, parsed: parseImageFileName(file.name), error: validateUploadFile(file) }));
+      const parsed = files.map(file => {
+        const meta = parseImageFileName(file.name);
+        meta.folderPath = getFileFolderPath(file);
+        meta.relativePath = String(file.webkitRelativePath || file.name || "");
+        meta.key = deliveryKey(meta.sku, meta.view, meta.folderPath);
+        return { file, parsed: meta, error: validateUploadFile(file) };
+      });
+
       parsed.forEach(item => {
         if (!item.error && (!item.parsed.sku || !item.parsed.view)) item.error = "Nombre inválido";
         if (!item.error && !skuSet.has(item.parsed.sku)) item.error = "SKU no pertenece al caso";
       });
+
+      const seenKeys = new Set();
+      parsed.forEach(item => {
+        if (item.error) return;
+        if (seenKeys.has(item.parsed.key)) item.error = "SKU_VISTA duplicado en la misma carpeta";
+        seenKeys.add(item.parsed.key);
+      });
+
       const errors = parsed.filter(item => item.error);
       if (errors.length) {
-        alert(errors.map(item => `${item.file.name}: ${item.error}`).join("\n"));
+        alert(errors.map(item => `${item.parsed.relativePath || item.file.name}: ${item.error}`).join("\n"));
         return;
       }
 
@@ -1327,11 +1370,12 @@
         const now = new Date().toISOString();
         for (let i = 0; i < parsed.length; i++) {
           const { file, parsed: meta } = parsed[i];
-          await deactivatePreviousActiveRevision(caseId, meta.sku, meta.view);
-          const imageId = `${caseId}_${meta.sku}_${meta.view}_${Date.now()}_${i}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+          await deactivatePreviousActiveRevision(caseId, meta.sku, meta.view, meta.folderPath);
+          const imageId = `${caseId}_${meta.folderPath}_${meta.sku}_${meta.view}_${Date.now()}_${i}`.replace(/[^a-zA-Z0-9_-]/g, "_");
           const ext = fileExtension(file.name) || "png";
           const finalName = `${meta.sku}_${meta.view}.${ext}`;
-          const path = `${STORAGE_ROOT}/trabajado/${caseId}/${imageId}_${safeFileName(finalName)}`;
+          const folderPart = meta.folderPath ? `${meta.folderPath}/` : "";
+          const path = `${STORAGE_ROOT}/trabajado/${caseId}/${folderPart}${imageId}_${safeFileName(finalName)}`;
           const contentType = uploadContentType(file);
           await uploadBytes(storageRef(storage, path), file, { contentType });
           const url = await getDownloadURL(storageRef(storage, path));
@@ -1341,6 +1385,8 @@
             caseNumber: record.caseNumber,
             sku: meta.sku,
             view: meta.view,
+            folderPath: meta.folderPath || "",
+            relativePath: meta.relativePath || file.name,
             fileName: finalName,
             originalName: file.name,
             path,
@@ -1356,8 +1402,10 @@
             rejectReason: ""
           });
         }
+
+        const expectedViews = mergeExpectedViews(record.expectedViews || [], parsed.map(item => item.parsed));
         const pendingRejected = removePendingForUploads(record.pendingRejected || [], parsed.map(item => item.parsed));
-        await updateDoc(caseRef(caseId), { estado: STATUS.REVISION, pendingRejected, updatedAt: now, updatedBy: currentUser() });
+        await updateDoc(caseRef(caseId), { estado: STATUS.REVISION, expectedViews, pendingRejected, updatedAt: now, updatedBy: currentUser() });
         selectedReviewId = caseId;
         toast(`${parsed.length} imagen(es) subidas a revisión.`);
       } catch (err) {
@@ -1369,12 +1417,43 @@
     }
 
     function removePendingForUploads(pending, uploaded) {
-      const uploadedKeys = new Set(uploaded.map(item => `${item.sku}__${item.view}`));
-      return pending.filter(item => !uploadedKeys.has(`${normalizeSku(item.sku)}__${String(item.view || "").trim()}`));
+      const uploadedKeys = new Set(uploaded.map(item => deliveryKey(item.sku, item.view, item.folderPath || "")));
+      return pending.filter(item => !uploadedKeys.has(deliveryKey(item.sku, item.view, item.folderPath || "")));
     }
 
-    async function deactivatePreviousActiveRevision(caseId, sku, view) {
-      const previous = images.filter(img => img.caseId === caseId && normalizeSku(img.sku) === sku && String(img.view) === String(view) && img.active !== false && img.status !== IMG_STATUS.APROBADO);
+    function mergeExpectedViews(current, uploaded) {
+      const map = new Map();
+      (current || []).forEach(item => {
+        const key = deliveryKey(item.sku, item.view, item.folderPath || "");
+        if (item.sku && item.view) map.set(key, {
+          sku: normalizeSku(item.sku),
+          view: String(item.view || ""),
+          folderPath: normalizeFolderPath(item.folderPath || "")
+        });
+      });
+      (uploaded || []).forEach(item => {
+        const key = deliveryKey(item.sku, item.view, item.folderPath || "");
+        if (item.sku && item.view) map.set(key, {
+          sku: normalizeSku(item.sku),
+          view: String(item.view || ""),
+          folderPath: normalizeFolderPath(item.folderPath || "")
+        });
+      });
+      return [...map.values()].sort((a, b) => {
+        return String(a.folderPath || "").localeCompare(String(b.folderPath || ""), undefined, { numeric: true })
+          || normalizeSku(a.sku).localeCompare(normalizeSku(b.sku), undefined, { numeric: true })
+          || String(a.view).localeCompare(String(b.view), undefined, { numeric: true });
+      });
+    }
+
+    function removeExpectedView(current, img) {
+      const key = imageDeliveryKey(img);
+      return (current || []).filter(item => deliveryKey(item.sku, item.view, item.folderPath || "") !== key);
+    }
+
+    async function deactivatePreviousActiveRevision(caseId, sku, view, folderPath = "") {
+      const key = deliveryKey(sku, view, folderPath);
+      const previous = images.filter(img => img.caseId === caseId && imageDeliveryKey(img) === key && img.active !== false && img.status !== IMG_STATUS.APROBADO);
       for (const img of previous) await updateDoc(imageRef(img.id), { active: false, replacedAt: new Date().toISOString(), replacedBy: currentUser() }).catch(() => null);
     }
 
@@ -1443,7 +1522,7 @@
             <div class="review-sku-head">
               <div>
                 <strong>SKU ${escapeHtml(group.sku)}</strong><br>
-                <small>${group.items.length} vista(s): ${group.items.map(img => escapeHtml(img.view)).join(" · ")}</small>
+                <small>${group.items.length} vista(s): ${group.items.map(img => escapeHtml(img.folderPath ? `${img.folderPath}/${img.view}` : img.view)).join(" · ")}</small>
               </div>
               <span class="pill status">${group.items.length}</span>
             </div>
@@ -1473,13 +1552,13 @@
         <div class="image-card">
           <div class="image-card-head">
             <label><input type="checkbox" class="review-check" value="${escapeHtml(img.id)}" checked> Seleccionar</label>
-            <span>${escapeHtml(img.sku)}_${escapeHtml(img.view)}</span>
+            <span>${escapeHtml(deliveryDisplay(img.folderPath, img.sku, img.view))}</span>
           </div>
           <div class="image-zoom-frame" data-zoom-url="${escapeHtml(img.url)}" onmousemove="handleReviewImageZoom(event)" onmouseleave="resetReviewImageZoom(event)" onclick="openImageModal('${encodeForInline(img.url)}')">
             <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}">
           </div>
           <div class="image-card-body">
-            <div class="muted">${escapeHtml(img.fileName)} · ${formatDate(img.uploadedAt)}</div>
+            <div class="muted">${escapeHtml(img.folderPath ? `${img.folderPath}/` : "")}${escapeHtml(img.fileName)} · ${formatDate(img.uploadedAt)}</div>
             <div class="reject-box"><textarea id="reject_${escapeHtml(img.id)}" placeholder="Motivo rechazo"></textarea></div>
             <div class="actions">
               <button class="btn btn-primary btn-small" onclick="approveImage('${encodeForInline(img.id)}')">Aceptar</button>
@@ -1578,7 +1657,7 @@
       const now = new Date().toISOString();
       await updateDoc(imageRef(id), { status: IMG_STATUS.RECHAZADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
       const record = cases.find(c => c.id === img.caseId);
-      const pending = upsertPending(record?.pendingRejected || [], { sku: img.sku, view: img.view, reason, rejectedAt: now, rejectedBy: currentUser() });
+      const pending = upsertPending(record?.pendingRejected || [], { sku: img.sku, view: img.view, folderPath: img.folderPath || "", reason, rejectedAt: now, rejectedBy: currentUser() });
       await updateDoc(caseRef(img.caseId), { estado: STATUS.RECHAZADO, pendingRejected: pending, updatedAt: now, updatedBy: currentUser() });
       toast("Imagen rechazada. Vuelve al caso del post.");
     }
@@ -1590,14 +1669,23 @@
       const reason = document.getElementById(`reject_${id}`)?.value.trim() || "Descartado";
       const now = new Date().toISOString();
       await updateDoc(imageRef(id), { status: IMG_STATUS.DESCARTADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
+      const record = cases.find(c => c.id === img.caseId);
+      if (record?.expectedViews?.length) await updateDoc(caseRef(img.caseId), { expectedViews: removeExpectedView(record.expectedViews, img), updatedAt: now, updatedBy: currentUser() }).catch(() => null);
       await recomputeCaseState(img.caseId);
       toast("Imagen descartada.");
     }
 
     function upsertPending(pending, item) {
-      const key = `${normalizeSku(item.sku)}__${String(item.view)}`;
-      const clean = pending.filter(p => `${normalizeSku(p.sku)}__${String(p.view)}` !== key);
-      clean.push({ sku: normalizeSku(item.sku), view: String(item.view), reason: item.reason || "", rejectedAt: item.rejectedAt || new Date().toISOString(), rejectedBy: item.rejectedBy || currentUser() });
+      const key = deliveryKey(item.sku, item.view, item.folderPath || "");
+      const clean = pending.filter(p => deliveryKey(p.sku, p.view, p.folderPath || "") !== key);
+      clean.push({
+        sku: normalizeSku(item.sku),
+        view: String(item.view),
+        folderPath: normalizeFolderPath(item.folderPath || ""),
+        reason: item.reason || "",
+        rejectedAt: item.rejectedAt || new Date().toISOString(),
+        rejectedBy: item.rejectedBy || currentUser()
+      });
       return clean;
     }
 
@@ -1618,11 +1706,22 @@
       await updateDoc(caseRef(caseId), patch).catch(() => null);
     }
 
+    function getExpectedItems(record) {
+      const fromCase = Array.isArray(record.expectedViews) ? record.expectedViews.filter(item => item.sku && item.view) : [];
+      if (fromCase.length) return mergeExpectedViews([], fromCase);
+      const fromImages = getCaseImages(record.id)
+        .filter(img => img.status !== IMG_STATUS.DESCARTADO)
+        .map(img => ({ sku: img.sku, view: img.view, folderPath: img.folderPath || "" }));
+      return mergeExpectedViews([], fromImages);
+    }
+
     function isCaseComplete(record, approvedImages = getApprovedImages(record.id)) {
-      const skus = record.skus || [];
-      if (!skus.length || !approvedImages.length) return false;
-      const approvedBySku = new Set(approvedImages.map(img => normalizeSku(img.sku)));
-      return skus.every(row => approvedBySku.has(normalizeSku(row.sku))) && !(record.pendingRejected || []).length && !getRevisionImages(record.id).length;
+      const expected = getExpectedItems(record);
+      if (!expected.length || !approvedImages.length) return false;
+      const approvedKeys = new Set(approvedImages.map(imageDeliveryKey));
+      return expected.every(item => approvedKeys.has(deliveryKey(item.sku, item.view, item.folderPath || "")))
+        && !(record.pendingRejected || []).length
+        && !getRevisionImages(record.id).length;
     }
 
     function getMasterCases() {
@@ -1658,7 +1757,7 @@
                     <td>${escapeHtml((record.brands || []).join(", "))}</td>
                     <td>${escapeHtml(record.editor || "")}</td>
                     <td>${(record.skus || []).length}</td>
-                    <td>${approved}</td>
+                    <td>${approved} / ${getExpectedItems(record).length || approved}</td>
                     <td>${formatDate(record.availableUntil)}</td>
                     <td><div class="actions">
                       <button class="btn btn-primary btn-small" onclick="downloadCaseZip('${encodeForInline(record.id)}')">Descargar ZIP</button>
@@ -1679,7 +1778,7 @@
       const caseId = decodeURIComponent(caseIdRaw || "");
       const record = cases.find(c => c.id === caseId);
       if (!record) return;
-      const approved = getApprovedImages(caseId).sort((a, b) => normalizeSku(a.sku).localeCompare(normalizeSku(b.sku)) || String(a.view).localeCompare(String(b.view)));
+      const approved = getApprovedImages(caseId).sort((a, b) => String(a.folderPath || "").localeCompare(String(b.folderPath || ""), undefined, { numeric: true }) || normalizeSku(a.sku).localeCompare(normalizeSku(b.sku), undefined, { numeric: true }) || String(a.view).localeCompare(String(b.view), undefined, { numeric: true }));
       if (!approved.length) return alert("No hay imágenes aceptadas para descargar.");
       const zip = new JSZip();
       for (const img of approved) {
@@ -1687,7 +1786,9 @@
           const res = await fetch(img.url);
           const blob = await res.blob();
           const ext = fileExtension(img.fileName) || "png";
-          zip.file(`${safeFileName(img.sku)}_${safeFileName(img.view)}.${ext}`, blob);
+          const folder = normalizeFolderPath(img.folderPath || "");
+          const zipName = `${safeFileName(img.sku)}_${safeFileName(img.view)}.${ext}`;
+          zip.file(`${folder ? `${folder}/` : ""}${zipName}`, blob);
         } catch (err) { console.error(err); }
       }
       const blob = await zip.generateAsync({ type: "blob" });
