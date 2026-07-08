@@ -1932,7 +1932,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.2.9 IA</span></h1>
+          <h1>Flujo IA <span class="version">V1.3.0 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2242,7 +2242,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.2.9 IA";
+    const APP_VERSION = "V1.3.0 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -5826,7 +5826,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           </div>
         ` : "";
         const viewHistoryButton = hasMasterDownloadImages(record) ? `
-          <button class="btn btn-soft btn-small" type="button" onclick="openMasterHistoryViewer('${record.id}')">
+          <button class="btn btn-soft btn-small" type="button" onclick="openMasterHistoryViewer('${encodeForInline(record.id)}')">
             Ver historial
           </button>
         ` : "";
@@ -6151,7 +6151,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
                 const status = historyStatusLabel(image.reviewStatus || image.result || image.sourceStatus);
                 return `
                   <article class="history-card">
-                    <img src="${escapeHtml(url)}" alt="${escapeHtml(name)}" onclick="openImageModal('${escapeForInline(url)}', '${escapeForInline(name)}')" />
+                    <img src="${escapeHtml(url)}" alt="${escapeHtml(name)}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(name)}')" />
                     <strong>${escapeHtml(name)}</strong>
                     <small>${escapeHtml(status)}</small>
                     ${date ? `<small>${escapeHtml(formatDate(date))}</small>` : ""}
