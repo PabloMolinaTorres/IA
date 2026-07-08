@@ -364,6 +364,10 @@
       overflow: hidden;
       cursor: zoom-in;
       border-bottom: 1px solid var(--border);
+      --zoom-x: 50%;
+      --zoom-y: 50%;
+      --zoom-left: 50%;
+      --zoom-top: 50%;
     }
     .image-zoom-frame img {
       width: 100%;
@@ -372,10 +376,27 @@
       object-fit: contain;
       background: white;
       display: block;
-      transition: transform .12s ease;
-      transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%);
     }
-    .image-zoom-frame:hover img { transform: scale(2.15); }
+    .image-zoom-frame::after {
+      content: "";
+      position: absolute;
+      left: var(--zoom-left);
+      top: var(--zoom-top);
+      width: min(220px, 42%);
+      height: min(220px, 42%);
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      border: 2px solid rgba(255, 255, 255, .95);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(0, 0, 0, .18);
+      background-image: var(--zoom-image);
+      background-repeat: no-repeat;
+      background-size: 230% 230%;
+      background-position: var(--zoom-x) var(--zoom-y);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 6;
+    }
+    .image-zoom-frame:hover::after { opacity: 1; }
 
     .reject-box textarea { width: 100%; min-height: 80px; resize: vertical; border: 1px solid var(--border); background: var(--card2); color: var(--text); border-radius: 12px; padding: 10px; outline: none; line-height: 1.35; }
 
@@ -449,7 +470,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.1</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.2</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1361,7 +1382,7 @@
             <label><input type="checkbox" class="review-check" value="${escapeHtml(img.id)}" checked> Seleccionar</label>
             <span>${escapeHtml(img.sku)}_${escapeHtml(img.view)}</span>
           </div>
-          <div class="image-zoom-frame" onmousemove="handleReviewImageZoom(event)" onclick="openImageModal('${encodeForInline(img.url)}')">
+          <div class="image-zoom-frame" data-zoom-url="${escapeHtml(img.url)}" onmousemove="handleReviewImageZoom(event)" onmouseleave="resetReviewImageZoom(event)" onclick="openImageModal('${encodeForInline(img.url)}')">
             <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}">
           </div>
           <div class="image-card-body">
@@ -1379,11 +1400,31 @@
     function handleReviewImageZoom(event) {
       const frame = event.currentTarget;
       if (!frame) return;
+
+      const zoomUrl = frame.dataset.zoomUrl || "";
+      if (zoomUrl && !frame.style.getPropertyValue("--zoom-image")) {
+        frame.style.setProperty("--zoom-image", `url("${zoomUrl}")`);
+      }
+
       const rect = frame.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * 100;
-      const y = ((event.clientY - rect.top) / rect.height) * 100;
-      frame.style.setProperty("--zoom-x", `${Math.max(0, Math.min(100, x))}%`);
-      frame.style.setProperty("--zoom-y", `${Math.max(0, Math.min(100, y))}%`);
+      const rawX = ((event.clientX - rect.left) / rect.width) * 100;
+      const rawY = ((event.clientY - rect.top) / rect.height) * 100;
+      const x = Math.max(0, Math.min(100, rawX));
+      const y = Math.max(0, Math.min(100, rawY));
+
+      frame.style.setProperty("--zoom-x", `${x}%`);
+      frame.style.setProperty("--zoom-y", `${y}%`);
+      frame.style.setProperty("--zoom-left", `${x}%`);
+      frame.style.setProperty("--zoom-top", `${y}%`);
+    }
+
+    function resetReviewImageZoom(event) {
+      const frame = event.currentTarget;
+      if (!frame) return;
+      frame.style.setProperty("--zoom-left", "50%");
+      frame.style.setProperty("--zoom-top", "50%");
+      frame.style.setProperty("--zoom-x", "50%");
+      frame.style.setProperty("--zoom-y", "50%");
     }
 
     function toggleAllReviewImages(checked) {
@@ -1752,6 +1793,8 @@
     window.discardImage = discardImage;
     window.approveSelectedReview = approveSelectedReview;
     window.toggleAllReviewImages = toggleAllReviewImages;
+    window.handleReviewImageZoom = handleReviewImageZoom;
+    window.resetReviewImageZoom = resetReviewImageZoom;
     window.setMasterSearch = setMasterSearch;
     window.downloadCaseZip = downloadCaseZip;
     window.openHistoryViewer = openHistoryViewer;
