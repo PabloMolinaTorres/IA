@@ -202,6 +202,17 @@
       font-weight: 700;
     }
     .field textarea { min-height: 86px; resize: vertical; line-height: 1.35; }
+    .master-inline-select {
+      min-width: 145px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 9px;
+      outline: none;
+      font-weight: 900;
+      font-size: 12px;
+    }
 
     .panel-title {
       padding: 15px 16px;
@@ -482,7 +493,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.7</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.8</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -920,6 +931,68 @@
       `;
     }
 
+    function canChangeCaseEditor() {
+      return isAdmin() || currentRole() === ROLES.REVISOR;
+    }
+
+    function getRetocadorUsers() {
+      return Object.keys(USER_ROLES).filter(name => USER_ROLES[name] === ROLES.RETOCADOR).sort((a, b) => a.localeCompare(b));
+    }
+
+    function renderCaseEditorControl(record) {
+      if (!canChangeCaseEditor()) return "";
+      const retocadores = getRetocadorUsers();
+      const current = record.editor || "";
+      const extraCurrent = current && !retocadores.includes(current) ? [current] : [];
+      const options = ["", ...extraCurrent, ...retocadores].map(name => `
+        <option value="${escapeHtml(name)}" ${name === current ? "selected" : ""}>${name ? escapeHtml(name) : "Sin asignar"}</option>
+      `).join("");
+      return `
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Usuario del caso</strong><br><small>Admin y revisores pueden reasignar el post</small></div>
+          </div>
+          <div class="field">
+            <label>Post asignado</label>
+            <select onchange="changeCaseEditor('${encodeForInline(record.id)}', this.value)">
+              ${options}
+            </select>
+          </div>
+        </div>
+      `;
+    }
+
+    async function changeCaseEditor(caseIdRaw, newEditorRaw) {
+      if (!canChangeCaseEditor()) return alert("Solo admin o revisores pueden cambiar el usuario del caso.");
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const record = cases.find(c => c.id === caseId);
+      if (!record) return alert("Caso no encontrado.");
+
+      const newEditor = String(newEditorRaw || "").trim();
+      const now = new Date().toISOString();
+      const patch = {
+        editor: newEditor,
+        updatedAt: now,
+        updatedBy: currentUser(),
+        reassignedAt: now,
+        reassignedBy: currentUser()
+      };
+
+      if (!newEditor && ![STATUS.REVISION, STATUS.COMPLETADO, STATUS.DESCARGADO].includes(record.estado)) {
+        patch.estado = STATUS.PENDIENTE;
+        patch.takenAt = "";
+      }
+
+      if (newEditor && record.estado === STATUS.PENDIENTE) {
+        patch.estado = STATUS.TRABAJO;
+        patch.takenAt = record.takenAt || now;
+      }
+
+      await updateDoc(caseRef(caseId), patch);
+      toast(newEditor ? `Caso asignado a ${newEditor}.` : "Caso sin usuario asignado.");
+      refresh();
+    }
+
     function renderWork() {
       const list = getWorkCases();
       if (!selectedWorkId || !list.some(record => record.id === selectedWorkId)) selectedWorkId = list[0]?.id || "";
@@ -1008,6 +1081,7 @@
           <div class="info-box"><small>Activas</small><span>${active.length}</span></div>
           <div class="info-box"><small>Faltantes</small><span>${pendingRejected.length}</span></div>
         </div>
+        ${renderCaseEditorControl(record)}
         ${renderPendingRejectedPanel(pendingRejected, "Correcciones pendientes", "Motivo informado por revisión")}
         <div class="section-block">
           <div class="section-head"><div><strong>Especificaciones por marca</strong><br><small>Referencia para post producción</small></div></div>
@@ -1331,6 +1405,7 @@
           <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${escapeHtml((record.brands || []).join(", "))} · Post: ${escapeHtml(record.editor || "")}</small></div>
           ${statusPill(record.estado)}
         </div>
+        ${renderCaseEditorControl(record)}
         ${renderPendingRejectedPanel(pendingRejected, "Subir correcciones", "SKU_VISTA rechazados y motivo")}
         <label id="workedDrop" class="upload-box" for="workedInput">
           <strong>Arrastra o sube imágenes trabajadas</strong>
@@ -1611,6 +1686,7 @@
           <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${imgs.length} imagen(es) en revisión · ${grouped.length} SKU(s)</small></div>
           ${statusPill(record.estado)}
         </div>
+        ${renderCaseEditorControl(record)}
         <div class="actions" style="margin-bottom:14px;">
           <button class="btn btn-primary" onclick="approveSelectedReview('${encodeForInline(record.id)}')">Aceptar seleccionadas</button>
           <button class="btn btn-soft" onclick="toggleAllReviewImages(true)">Seleccionar todo</button>
@@ -1854,7 +1930,7 @@
                   return `<tr>
                     <td><strong>${escapeHtml(record.caseNumber)}</strong><br>${statusPill(record.estado)}</td>
                     <td>${escapeHtml((record.brands || []).join(", "))}</td>
-                    <td>${escapeHtml(record.editor || "")}</td>
+                    <td>${canChangeCaseEditor() ? `<select class="master-inline-select" onchange="changeCaseEditor('${encodeForInline(record.id)}', this.value)">${["", ...getRetocadorUsers()].map(name => `<option value="${escapeHtml(name)}" ${name === (record.editor || "") ? "selected" : ""}>${name ? escapeHtml(name) : "Sin asignar"}</option>`).join("")}</select>` : escapeHtml(record.editor || "")}</td>
                     <td>${(record.skus || []).length}</td>
                     <td>${approved} / ${getExpectedItems(record).length || approved}</td>
                     <td>${formatDate(record.availableUntil)}</td>
@@ -2121,6 +2197,7 @@
     window.takeCase = takeCase;
     window.openUploadForCase = openUploadForCase;
     window.deleteCase = deleteCase;
+    window.changeCaseEditor = changeCaseEditor;
     window.selectUploadCase = selectUploadCase;
     window.handleWorkedUpload = handleWorkedUpload;
     window.selectReviewCase = selectReviewCase;
