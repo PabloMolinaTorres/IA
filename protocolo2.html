@@ -482,7 +482,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.6</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.7</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -680,10 +680,27 @@
         .filter(Boolean)
         .join("/");
     }
+    function getFileRelativePath(file) {
+      return String(file?._relativePath || file?.webkitRelativePath || file?.name || "").replace(/\\/g, "/");
+    }
     function getFileFolderPath(file) {
-      const relative = String(file?.webkitRelativePath || "").replace(/\\/g, "/");
+      const relative = getFileRelativePath(file);
       if (!relative || !relative.includes("/")) return "";
       return normalizeFolderPath(relative.split("/").slice(0, -1).join("/"));
+    }
+    function folderSortValue(value) {
+      const folder = normalizeFolderPath(value || "");
+      return folder || "zzzz_sueltas";
+    }
+    function compareDeliveryItems(a, b) {
+      const folderA = normalizeFolderPath(a?.folderPath || "");
+      const folderB = normalizeFolderPath(b?.folderPath || "");
+      const looseA = folderA ? 1 : 0;
+      const looseB = folderB ? 1 : 0;
+      return looseA - looseB
+        || folderA.localeCompare(folderB, undefined, { numeric: true })
+        || normalizeSku(a?.sku).localeCompare(normalizeSku(b?.sku), undefined, { numeric: true })
+        || String(a?.view || "").localeCompare(String(b?.view || ""), undefined, { numeric: true });
     }
     function deliveryKey(sku, view, folderPath = "") {
       return `${normalizeFolderPath(folderPath)}__${normalizeSku(sku)}__${String(view || "").trim()}`;
@@ -924,7 +941,24 @@
           <div class="detail-panel"><div class="detail-content" id="workDetail"></div></div>
         </div>
       `;
+      setupCaseDropZone();
       renderWorkDetail();
+    }
+
+    function setupCaseDropZone() {
+      const box = document.getElementById("caseExcelDrop");
+      if (!box) return;
+      box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("drag-over"); });
+      box.addEventListener("dragleave", () => box.classList.remove("drag-over"));
+      box.addEventListener("drop", async e => {
+        e.preventDefault();
+        box.classList.remove("drag-over");
+        if (!isReviewer()) return alert("Solo admin o revisores pueden cargar casos.");
+        const files = await getDroppedFiles(e);
+        const excel = files.find(file => /\.(xlsx|xls|csv)$/i.test(file.name || ""));
+        if (!excel) return alert("Arrastra un archivo Excel válido.");
+        await processCaseExcelFile(excel);
+      });
     }
 
     function renderCaseUploadPanel() {
@@ -936,8 +970,8 @@
               <button class="btn btn-soft" onclick="downloadCaseTemplate()">Plantilla</button>
             </div>
           </div>
-          <label class="upload-box" for="caseExcelInput">
-            <strong>Subir Excel del caso</strong>
+          <label id="caseExcelDrop" class="upload-box" for="caseExcelInput">
+            <strong>Arrastra o sube Excel del caso</strong>
             <small>El número de caso se lee desde el nombre del archivo. SKU columna J, Marca columna G.</small>
           </label>
           <input id="caseExcelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleCaseExcel(event)" />
@@ -974,11 +1008,7 @@
           <div class="info-box"><small>Activas</small><span>${active.length}</span></div>
           <div class="info-box"><small>Faltantes</small><span>${pendingRejected.length}</span></div>
         </div>
-        ${pendingRejected.length ? `
-          <div class="section-block">
-            <div class="section-head"><div><strong>Correcciones pendientes</strong><br><small>SKU_VISTA rechazados</small></div></div>
-            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(deliveryDisplay(item.folderPath, item.sku, item.view))}</span>`).join("")}</div>
-          </div>` : ""}
+        ${renderPendingRejectedPanel(pendingRejected, "Correcciones pendientes", "Motivo informado por revisión")}
         <div class="section-block">
           <div class="section-head"><div><strong>Especificaciones por marca</strong><br><small>Referencia para post producción</small></div></div>
           ${renderSpecsForBrands(brands)}
@@ -993,6 +1023,32 @@
           ${isAdmin() ? `<button class="btn btn-red" onclick="deleteCase('${encodeForInline(record.id)}')">Eliminar caso</button>` : ""}
         </div>
       `;
+    }
+
+    function renderPendingRejectedPanel(pendingRejected = [], title = "Correcciones pendientes", subtitle = "") {
+      if (!pendingRejected.length) return "";
+      const rows = [...pendingRejected].sort(compareDeliveryItems);
+      return `
+        <div class="section-block">
+          <div class="section-head"><div><strong>${escapeHtml(title)}</strong><br><small>${escapeHtml(subtitle || "SKU_VISTA rechazados")}</small></div></div>
+          <div class="match-table-wrap">
+            <table class="table">
+              <thead><tr><th>Taxonomía</th><th>SKU</th><th>Vista</th><th>Motivo rechazo</th><th>Revisor</th><th>Fecha</th></tr></thead>
+              <tbody>
+                ${rows.map(item => `
+                  <tr>
+                    <td>${escapeHtml(item.folderPath || "Sueltas")}</td>
+                    <td><strong>${escapeHtml(item.sku || "")}</strong></td>
+                    <td>${escapeHtml(item.view || "")}</td>
+                    <td>${escapeHtml(item.reason || "Sin motivo")}</td>
+                    <td>${escapeHtml(item.rejectedBy || "")}</td>
+                    <td>${formatDate(item.rejectedAt)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
     }
 
     function renderSpecsForBrands(brands) {
@@ -1119,6 +1175,11 @@
     async function handleCaseExcel(event) {
       const file = event.target.files?.[0];
       event.target.value = "";
+      if (!file) return;
+      await processCaseExcelFile(file);
+    }
+
+    async function processCaseExcelFile(file) {
       if (!file) return;
       if (!isReviewer()) return alert("Solo admin o revisores pueden cargar casos.");
       const caseNumber = extractCaseNumber(file.name);
@@ -1270,11 +1331,7 @@
           <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${escapeHtml((record.brands || []).join(", "))} · Post: ${escapeHtml(record.editor || "")}</small></div>
           ${statusPill(record.estado)}
         </div>
-        ${pendingRejected.length ? `
-          <div class="section-block">
-            <div class="section-head"><div><strong>Subir correcciones</strong><br><small>Faltan estos SKU_VISTA</small></div></div>
-            <div class="view-tags">${pendingRejected.map(item => `<span class="view-tag view-bad">${escapeHtml(deliveryDisplay(item.folderPath, item.sku, item.view))}</span>`).join("")}</div>
-          </div>` : ""}
+        ${renderPendingRejectedPanel(pendingRejected, "Subir correcciones", "SKU_VISTA rechazados y motivo")}
         <label id="workedDrop" class="upload-box" for="workedInput">
           <strong>Arrastra o sube imágenes trabajadas</strong>
           <small>Nombre esperado: SKU_VISTA. También puedes subir carpetas; se conservarán en el ZIP final.</small>
@@ -1298,28 +1355,70 @@
       if (!box) return;
       box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("drag-over"); });
       box.addEventListener("dragleave", () => box.classList.remove("drag-over"));
-      box.addEventListener("drop", e => {
+      box.addEventListener("drop", async e => {
         e.preventDefault();
         box.classList.remove("drag-over");
-        const files = [...(e.dataTransfer?.files || [])];
+        const files = await getDroppedFiles(e);
         processWorkedFiles(caseId, files);
+      });
+    }
+
+    async function getDroppedFiles(event) {
+      const items = [...(event.dataTransfer?.items || [])];
+      if (!items.length) return [...(event.dataTransfer?.files || [])];
+      const entries = items.map(item => item.webkitGetAsEntry ? item.webkitGetAsEntry() : null).filter(Boolean);
+      if (!entries.length) return [...(event.dataTransfer?.files || [])];
+      const files = [];
+      for (const entry of entries) await readEntryFiles(entry, "", files);
+      return files;
+    }
+
+    function readEntryFiles(entry, pathPrefix, output) {
+      return new Promise(resolve => {
+        if (!entry) return resolve();
+        if (entry.isFile) {
+          entry.file(file => {
+            file._relativePath = `${pathPrefix}${file.name}`;
+            output.push(file);
+            resolve();
+          }, () => resolve());
+          return;
+        }
+        if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const dirPrefix = `${pathPrefix}${entry.name}/`;
+          const readBatch = () => {
+            reader.readEntries(async entries => {
+              if (!entries.length) return resolve();
+              for (const child of entries) await readEntryFiles(child, dirPrefix, output);
+              readBatch();
+            }, () => resolve());
+          };
+          readBatch();
+          return;
+        }
+        resolve();
       });
     }
 
     function renderCaseMatchTable(record) {
       const rows = record.skus || [];
+      const allImgs = getCaseImages(record.id).sort(compareDeliveryItems);
+      const folderSet = new Set(allImgs.map(img => normalizeFolderPath(img.folderPath || "")).filter(Boolean));
       return `
         <div class="match-table-wrap">
           <table class="table">
-            <thead><tr><th>SKU</th><th>Marca</th><th>Vistas</th><th>Aceptadas</th><th>Revisión</th><th>Rechazadas</th></tr></thead>
+            <thead><tr><th>Taxonomía</th><th>SKU</th><th>Marca</th><th>Vistas</th><th>Aceptadas</th><th>Revisión</th><th>Rechazadas</th></tr></thead>
             <tbody>
               ${rows.map(row => {
-                const imgs = getCaseImages(record.id).filter(img => normalizeSku(img.sku) === normalizeSku(row.sku));
+                const imgs = allImgs.filter(img => normalizeSku(img.sku) === normalizeSku(row.sku));
                 const approved = imgs.filter(img => img.status === IMG_STATUS.APROBADO).length;
                 const revision = imgs.filter(img => img.status === IMG_STATUS.REVISION && img.active !== false).length;
                 const rejected = imgs.filter(img => img.status === IMG_STATUS.RECHAZADO).length;
+                const folders = [...new Set(imgs.map(img => normalizeFolderPath(img.folderPath || "") || "Sueltas"))].sort((a, b) => (a === "Sueltas" ? -1 : b === "Sueltas" ? 1 : a.localeCompare(b, undefined, { numeric: true })));
+                const taxonomy = folders.length ? folders.join(" | ") : (folderSet.size ? "Sin match" : "Sueltas");
                 const tags = imgs.length ? imgs.map(img => `<span class="view-tag ${img.status === IMG_STATUS.APROBADO ? "view-ok" : img.status === IMG_STATUS.REVISION ? "view-review" : img.status === IMG_STATUS.RECHAZADO ? "view-bad" : ""}">${escapeHtml(img.folderPath ? `${img.folderPath}/${img.view}` : img.view)}</span>`).join("") : `<span class="muted">Sin match</span>`;
-                return `<tr><td><strong>${escapeHtml(row.sku)}</strong></td><td>${escapeHtml(row.brand || "")}</td><td><div class="view-tags">${tags}</div></td><td>${approved}</td><td>${revision}</td><td>${rejected}</td></tr>`;
+                return `<tr><td>${escapeHtml(taxonomy)}</td><td><strong>${escapeHtml(row.sku)}</strong></td><td>${escapeHtml(row.brand || "")}</td><td><div class="view-tags">${tags}</div></td><td>${approved}</td><td>${revision}</td><td>${rejected}</td></tr>`;
               }).join("")}
             </tbody>
           </table>
@@ -1342,10 +1441,10 @@
       const parsed = files.map(file => {
         const meta = parseImageFileName(file.name);
         meta.folderPath = getFileFolderPath(file);
-        meta.relativePath = String(file.webkitRelativePath || file.name || "");
+        meta.relativePath = getFileRelativePath(file);
         meta.key = deliveryKey(meta.sku, meta.view, meta.folderPath);
         return { file, parsed: meta, error: validateUploadFile(file) };
-      });
+      }).sort((a, b) => compareDeliveryItems(a.parsed, b.parsed));
 
       parsed.forEach(item => {
         if (!item.error && (!item.parsed.sku || !item.parsed.view)) item.error = "Nombre inválido";
@@ -1505,7 +1604,7 @@
       const el = document.getElementById("reviewDetail");
       if (!el) return;
       if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
-      const imgs = getRevisionImages(record.id).sort((a, b) => normalizeSku(a.sku).localeCompare(normalizeSku(b.sku)) || String(a.view).localeCompare(String(b.view)));
+      const imgs = getRevisionImages(record.id).sort(compareDeliveryItems);
       const grouped = groupReviewImagesBySku(imgs);
       el.innerHTML = `
         <div class="detail-header">
@@ -1960,17 +2059,30 @@
     }
 
     function exportMasterExcel() {
-      const rows = [["CASO", "ESTADO", "POST", "MARCAS", "SKU", "IMAGENES_ACEPTADAS", "DESCARGADO", "DISPONIBLE_HASTA"]];
-      getMasterCases().forEach(record => rows.push([
-        record.caseNumber,
-        record.estado,
-        record.editor || "",
-        (record.brands || []).join(" | "),
-        (record.skus || []).length,
-        getApprovedImages(record.id).length,
-        record.downloadedAt || "",
-        record.availableUntil || ""
-      ]));
+      const rows = [["CASO", "ESTADO_CASO", "POST", "MARCAS", "TAXONOMIA", "SKU", "VISTA", "ARCHIVO", "ESTADO_IMAGEN", "REVISOR", "FECHA_REVISION", "MOTIVO", "URL", "DISPONIBLE_HASTA"]];
+      getMasterCases().forEach(record => {
+        const approved = getApprovedImages(record.id).sort(compareDeliveryItems);
+        if (!approved.length) {
+          rows.push([record.caseNumber, record.estado, record.editor || "", (record.brands || []).join(" | "), "", "", "", "", "", "", "", "", "", record.availableUntil || ""]);
+          return;
+        }
+        approved.forEach(img => rows.push([
+          record.caseNumber,
+          record.estado,
+          record.editor || "",
+          (record.brands || []).join(" | "),
+          img.folderPath || "Sueltas",
+          img.sku || "",
+          img.view || "",
+          img.fileName || "",
+          img.status || "",
+          img.reviewedBy || "",
+          img.reviewedAt || "",
+          img.rejectReason || "",
+          img.url || "",
+          record.availableUntil || ""
+        ]));
+      });
       const ws = XLSX.utils.aoa_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Master protocolo 2");
@@ -2004,6 +2116,7 @@
     window.selectWorkCase = selectWorkCase;
     window.setWorkSearch = setWorkSearch;
     window.handleCaseExcel = handleCaseExcel;
+    window.processCaseExcelFile = processCaseExcelFile;
     window.downloadCaseTemplate = downloadCaseTemplate;
     window.takeCase = takeCase;
     window.openUploadForCase = openUploadForCase;
