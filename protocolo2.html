@@ -346,6 +346,50 @@
     .upload-box small { color: var(--muted); line-height: 1.4; }
     .input-file { display: none; }
 
+    .upload-progress-panel {
+      border: 1px solid var(--border);
+      background: var(--card2);
+      border-radius: 16px;
+      padding: 13px 14px;
+      margin-bottom: 14px;
+      display: grid;
+      gap: 9px;
+    }
+    .upload-progress-panel.hidden { display: none; }
+    .upload-progress-head,
+    .upload-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .upload-progress-head strong { font-size: 14px; font-weight: 900; }
+    .upload-progress-head span,
+    .upload-progress-meta { color: var(--muted); font-size: 12px; font-weight: 900; }
+    .upload-progress-track {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .upload-progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--greenFalabella), var(--greenDark));
+      transition: width .16s linear;
+    }
+    .upload-progress-panel.error { border-color: rgba(239, 68, 68, .35); background: rgba(239, 68, 68, .08); }
+    .upload-progress-panel.error .upload-progress-bar { background: var(--red); }
+    .upload-progress-current {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
     .match-table-wrap { width: 100%; overflow: auto; }
     .table { width: 100%; border-collapse: collapse; min-width: 760px; }
     .table th, .table td { padding: 11px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: 13px; }
@@ -377,6 +421,22 @@
     .review-sku-head strong { font-size: 16px; font-weight: 900; }
     .review-sku-head small { color: var(--muted); font-weight: 900; }
     .review-image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .review-bundle-folders {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .review-bundle-chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 900;
+    }
     .image-zoom-frame {
       position: relative;
       width: 100%;
@@ -493,7 +553,7 @@
       <div class="brand">
         <div class="logo-box">P2</div>
         <div>
-          <h1>WIDA Protocolo 2 <span class="version">V1.8</span></h1>
+          <h1>WIDA Protocolo 2 <span class="version">V1.9</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -563,6 +623,7 @@
       getStorage,
       ref as storageRef,
       uploadBytes,
+      uploadBytesResumable,
       getDownloadURL,
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
@@ -647,6 +708,15 @@
     let workSearch = "";
     let historyTab = "accepted";
     let uploadProcessing = false;
+    let uploadProgress = {
+      visible: false,
+      state: "idle",
+      totalFiles: 0,
+      completedFiles: 0,
+      totalBytes: 0,
+      uploadedBytes: 0,
+      currentFile: ""
+    };
     let unsubscribeCases = null;
     let unsubscribeImages = null;
     let unsubscribeSpecs = null;
@@ -715,6 +785,12 @@
     }
     function deliveryKey(sku, view, folderPath = "") {
       return `${normalizeFolderPath(folderPath)}__${normalizeSku(sku)}__${String(view || "").trim()}`;
+    }
+    function reviewGroupKey(sku, view) {
+      return `${normalizeSku(sku)}__${String(view || "").trim()}`;
+    }
+    function imageReviewGroupKey(img) {
+      return reviewGroupKey(img?.sku, img?.view);
     }
     function imageDeliveryKey(img) {
       return deliveryKey(img?.sku, img?.view, img?.folderPath || "");
@@ -1406,6 +1482,7 @@
           ${statusPill(record.estado)}
         </div>
         ${renderCaseEditorControl(record)}
+        ${renderUploadProgressPanel()}
         ${renderPendingRejectedPanel(pendingRejected, "Subir correcciones", "SKU_VISTA rechazados y motivo")}
         <label id="workedDrop" class="upload-box" for="workedInput">
           <strong>Arrastra o sube imágenes trabajadas</strong>
@@ -1423,6 +1500,81 @@
         </div>
       `;
       setupDropZone(record.id);
+    }
+
+    function uploadProgressPercent() {
+      if (!uploadProgress.totalBytes) {
+        return uploadProgress.totalFiles ? Math.round((uploadProgress.completedFiles / uploadProgress.totalFiles) * 100) : 0;
+      }
+      return Math.max(0, Math.min(100, Math.round((uploadProgress.uploadedBytes / uploadProgress.totalBytes) * 100)));
+    }
+
+    function renderUploadProgressPanel() {
+      const percent = uploadProgressPercent();
+      const visible = uploadProgress.visible || uploadProgress.totalFiles > 0;
+      const stateLabel = uploadProgress.state === "uploading"
+        ? "Cargando archivos"
+        : uploadProgress.state === "done"
+          ? "Carga completada"
+          : uploadProgress.state === "error"
+            ? "Carga interrumpida"
+            : "Carga";
+      const current = uploadProgress.currentFile || (uploadProgress.state === "done" ? "Todos los archivos fueron procesados." : "");
+      return `
+        <div id="uploadProgressPanel" class="upload-progress-panel ${visible ? "" : "hidden"} ${uploadProgress.state === "error" ? "error" : ""}">
+          <div class="upload-progress-head">
+            <strong>${stateLabel}</strong>
+            <span id="uploadProgressPercent">${percent}%</span>
+          </div>
+          <div class="upload-progress-track"><div id="uploadProgressBar" class="upload-progress-bar" style="width:${percent}%"></div></div>
+          <div class="upload-progress-meta">
+            <span id="uploadProgressFiles">${uploadProgress.completedFiles} de ${uploadProgress.totalFiles} archivos</span>
+            <span id="uploadProgressCurrent" class="upload-progress-current">${escapeHtml(current)}</span>
+          </div>
+        </div>`;
+    }
+
+    function refreshUploadProgressDom() {
+      const panel = document.getElementById("uploadProgressPanel");
+      if (!panel) return;
+      const percent = uploadProgressPercent();
+      panel.classList.toggle("hidden", !(uploadProgress.visible || uploadProgress.totalFiles > 0));
+      panel.classList.toggle("error", uploadProgress.state === "error");
+      const title = panel.querySelector(".upload-progress-head strong");
+      if (title) title.textContent = uploadProgress.state === "uploading" ? "Cargando archivos" : uploadProgress.state === "done" ? "Carga completada" : uploadProgress.state === "error" ? "Carga interrumpida" : "Carga";
+      const percentEl = document.getElementById("uploadProgressPercent");
+      const bar = document.getElementById("uploadProgressBar");
+      const filesEl = document.getElementById("uploadProgressFiles");
+      const currentEl = document.getElementById("uploadProgressCurrent");
+      if (percentEl) percentEl.textContent = `${percent}%`;
+      if (bar) bar.style.width = `${percent}%`;
+      if (filesEl) filesEl.textContent = `${uploadProgress.completedFiles} de ${uploadProgress.totalFiles} archivos`;
+      if (currentEl) currentEl.textContent = uploadProgress.currentFile || (uploadProgress.state === "done" ? "Todos los archivos fueron procesados." : "");
+    }
+
+    function beginUploadProgress(files) {
+      uploadProgress = {
+        visible: true,
+        state: "uploading",
+        totalFiles: files.length,
+        completedFiles: 0,
+        totalBytes: files.reduce((sum, item) => sum + Number(item.file?.size || 0), 0),
+        uploadedBytes: 0,
+        currentFile: files[0]?.parsed?.relativePath || files[0]?.file?.name || "Preparando carga"
+      };
+      renderUploadDetail();
+      refreshUploadProgressDom();
+    }
+
+    function uploadFileWithProgress(targetRef, file, metadata, completedBytesBefore, label) {
+      return new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(targetRef, file, metadata);
+        task.on("state_changed", snapshot => {
+          uploadProgress.uploadedBytes = completedBytesBefore + snapshot.bytesTransferred;
+          uploadProgress.currentFile = label;
+          refreshUploadProgressDom();
+        }, reject, () => resolve(task.snapshot));
+      });
     }
 
     function setupDropZone(caseId) {
@@ -1540,10 +1692,15 @@
       }
 
       uploadProcessing = true;
+      beginUploadProgress(parsed);
       try {
         const now = new Date().toISOString();
+        let completedBytes = 0;
         for (let i = 0; i < parsed.length; i++) {
           const { file, parsed: meta } = parsed[i];
+          const progressLabel = meta.relativePath || file.name;
+          uploadProgress.currentFile = progressLabel;
+          refreshUploadProgressDom();
           await deactivatePreviousActiveRevision(caseId, meta.sku, meta.view, meta.folderPath);
           const imageId = `${caseId}_${meta.folderPath}_${meta.sku}_${meta.view}_${Date.now()}_${i}`.replace(/[^a-zA-Z0-9_-]/g, "_");
           const ext = fileExtension(file.name) || "png";
@@ -1551,8 +1708,13 @@
           const folderPart = meta.folderPath ? `${meta.folderPath}/` : "";
           const path = `${STORAGE_ROOT}/trabajado/${caseId}/${folderPart}${imageId}_${safeFileName(finalName)}`;
           const contentType = uploadContentType(file);
-          await uploadBytes(storageRef(storage, path), file, { contentType });
-          const url = await getDownloadURL(storageRef(storage, path));
+          const targetRef = storageRef(storage, path);
+          await uploadFileWithProgress(targetRef, file, { contentType }, completedBytes, progressLabel);
+          completedBytes += Number(file.size || 0);
+          uploadProgress.uploadedBytes = completedBytes;
+          uploadProgress.completedFiles = i + 1;
+          refreshUploadProgressDom();
+          const url = await getDownloadURL(targetRef);
           await setDoc(imageRef(imageId), {
             id: imageId,
             caseId,
@@ -1581,9 +1743,17 @@
         const pendingRejected = removePendingForUploads(record.pendingRejected || [], parsed.map(item => item.parsed));
         await updateDoc(caseRef(caseId), { estado: STATUS.REVISION, expectedViews, pendingRejected, updatedAt: now, updatedBy: currentUser() });
         selectedReviewId = caseId;
+        uploadProgress.state = "done";
+        uploadProgress.uploadedBytes = uploadProgress.totalBytes;
+        uploadProgress.completedFiles = uploadProgress.totalFiles;
+        uploadProgress.currentFile = "Todos los archivos fueron procesados.";
+        refreshUploadProgressDom();
         toast(`${parsed.length} imagen(es) subidas a revisión.`);
       } catch (err) {
         console.error(err);
+        uploadProgress.state = "error";
+        uploadProgress.currentFile = "La carga se detuvo. Revisa la conexión e intenta nuevamente.";
+        refreshUploadProgressDom();
         alert("No se pudo subir una o más imágenes.");
       } finally {
         uploadProcessing = false;
@@ -1681,9 +1851,10 @@
       if (!record) { el.innerHTML = `<div class="empty">Selecciona un caso.</div>`; return; }
       const imgs = getRevisionImages(record.id).sort(compareDeliveryItems);
       const grouped = groupReviewImagesBySku(imgs);
+      const groupedViewsCount = grouped.reduce((sum, group) => sum + group.items.length, 0);
       el.innerHTML = `
         <div class="detail-header">
-          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${imgs.length} imagen(es) en revisión · ${grouped.length} SKU(s)</small></div>
+          <div><h2>Caso ${escapeHtml(record.caseNumber)}</h2><small>${groupedViewsCount} SKU_VISTA por revisar · ${imgs.length} archivo(s) físico(s) · ${grouped.length} SKU(s)</small></div>
           ${statusPill(record.estado)}
         </div>
         ${renderCaseEditorControl(record)}
@@ -1697,12 +1868,12 @@
             <div class="review-sku-head">
               <div>
                 <strong>SKU ${escapeHtml(group.sku)}</strong><br>
-                <small>${group.items.length} vista(s): ${group.items.map(img => escapeHtml(img.folderPath ? `${img.folderPath}/${img.view}` : img.view)).join(" · ")}</small>
+                <small>${group.items.length} vista(s) agrupadas · ${group.fileCount} archivo(s) entre todas las carpetas</small>
               </div>
               <span class="pill status">${group.items.length}</span>
             </div>
             <div class="review-image-grid">
-              ${group.items.map(img => renderReviewImageCard(img)).join("")}
+              ${group.items.map(bundle => renderReviewImageCard(record.id, bundle)).join("")}
             </div>
           </section>
         `).join("") : `<div class="empty">Sin imágenes en revisión.</div>`}
@@ -1710,35 +1881,74 @@
     }
 
     function groupReviewImagesBySku(imgs) {
-      const map = new Map();
+      const skuMap = new Map();
       imgs.forEach(img => {
         const sku = normalizeSku(img.sku) || String(img.sku || "");
-        if (!map.has(sku)) map.set(sku, []);
-        map.get(sku).push(img);
+        const groupKey = imageReviewGroupKey(img);
+        if (!skuMap.has(sku)) skuMap.set(sku, new Map());
+        const viewMap = skuMap.get(sku);
+        if (!viewMap.has(groupKey)) {
+          viewMap.set(groupKey, {
+            key: groupKey,
+            sku,
+            view: String(img.view || ""),
+            images: []
+          });
+        }
+        viewMap.get(groupKey).images.push(img);
       });
-      return [...map.entries()].map(([sku, items]) => ({
-        sku,
-        items: items.sort((a, b) => String(a.view).localeCompare(String(b.view), undefined, { numeric: true }))
-      }));
+
+      return [...skuMap.entries()].map(([sku, viewMap]) => {
+        const items = [...viewMap.values()].map(bundle => {
+          bundle.images.sort(compareDeliveryItems);
+          bundle.representative = bundle.images[0];
+          bundle.folders = [...new Set(bundle.images.map(img => normalizeFolderPath(img.folderPath || "") || "Sueltas"))]
+            .sort((a, b) => (a === "Sueltas" ? -1 : b === "Sueltas" ? 1 : a.localeCompare(b, undefined, { numeric: true })));
+          return bundle;
+        }).sort((a, b) => String(a.view).localeCompare(String(b.view), undefined, { numeric: true }));
+        return {
+          sku,
+          items,
+          fileCount: items.reduce((sum, bundle) => sum + bundle.images.length, 0)
+        };
+      }).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
     }
 
-    function renderReviewImageCard(img) {
+    function reviewBundleDomId(caseId, groupKey) {
+      return safeFileName(`${caseId}_${groupKey}`);
+    }
+
+    function getReviewBundle(caseId, groupKey) {
+      return getRevisionImages(caseId)
+        .filter(img => imageReviewGroupKey(img) === groupKey)
+        .sort(compareDeliveryItems);
+    }
+
+    function renderReviewImageCard(caseId, bundle) {
+      const img = bundle.representative;
+      const domId = reviewBundleDomId(caseId, bundle.key);
+      const folderLabel = bundle.folders.length === 1
+        ? bundle.folders[0]
+        : `${bundle.folders.length} carpetas`;
       return `
         <div class="image-card">
           <div class="image-card-head">
-            <label><input type="checkbox" class="review-check" value="${escapeHtml(img.id)}" checked> Seleccionar</label>
-            <span>${escapeHtml(deliveryDisplay(img.folderPath, img.sku, img.view))}</span>
+            <label><input type="checkbox" class="review-check" value="${escapeHtml(bundle.key)}" checked> Seleccionar</label>
+            <span>${escapeHtml(bundle.sku)}_${escapeHtml(bundle.view)}</span>
           </div>
           <div class="image-zoom-frame" data-zoom-url="${escapeHtml(img.url)}" onmousemove="handleReviewImageZoom(event)" onmouseleave="resetReviewImageZoom(event)" onclick="openImageModal('${encodeForInline(img.url)}')">
             <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.fileName)}">
           </div>
           <div class="image-card-body">
-            <div class="muted">${escapeHtml(img.folderPath ? `${img.folderPath}/` : "")}${escapeHtml(img.fileName)} · ${formatDate(img.uploadedAt)}</div>
-            <div class="reject-box"><textarea id="reject_${escapeHtml(img.id)}" placeholder="Motivo rechazo"></textarea></div>
+            <div class="muted">Vista ${escapeHtml(bundle.view)} · ${bundle.images.length} archivo(s) agrupado(s) · ${escapeHtml(folderLabel)}</div>
+            <div class="review-bundle-folders">
+              ${bundle.folders.map(folder => `<span class="review-bundle-chip">${escapeHtml(folder)}</span>`).join("")}
+            </div>
+            <div class="reject-box"><textarea id="reject_group_${escapeHtml(domId)}" placeholder="Motivo rechazo para todas las carpetas"></textarea></div>
             <div class="actions">
-              <button class="btn btn-primary btn-small" onclick="approveImage('${encodeForInline(img.id)}')">Aceptar</button>
-              <button class="btn btn-red btn-small" onclick="rejectImage('${encodeForInline(img.id)}')">Rechazar</button>
-              <button class="btn btn-soft btn-small" onclick="discardImage('${encodeForInline(img.id)}')">Descartar</button>
+              <button class="btn btn-primary btn-small" onclick="approveImageGroup('${encodeForInline(caseId)}','${encodeForInline(bundle.key)}')">Aceptar grupo</button>
+              <button class="btn btn-red btn-small" onclick="rejectImageGroup('${encodeForInline(caseId)}','${encodeForInline(bundle.key)}')">Rechazar grupo</button>
+              <button class="btn btn-soft btn-small" onclick="discardImageGroup('${encodeForInline(caseId)}','${encodeForInline(bundle.key)}')">Descartar grupo</button>
             </div>
           </div>
         </div>`;
@@ -1807,47 +2017,108 @@
     }
 
     async function approveSelectedReview(caseIdRaw) {
-      const ids = [...document.querySelectorAll(".review-check:checked")].map(input => input.value);
-      if (!ids.length) return alert("No hay imágenes seleccionadas.");
-      for (const id of ids) await approveImage(encodeURIComponent(id), true);
-      await recomputeCaseState(decodeURIComponent(caseIdRaw || ""));
-      toast(`${ids.length} imagen(es) aceptadas.`);
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const keys = [...document.querySelectorAll(".review-check:checked")].map(input => input.value);
+      if (!keys.length) return alert("No hay SKU_VISTA seleccionados.");
+      for (const key of keys) await approveImageGroup(encodeURIComponent(caseId), encodeURIComponent(key), true);
+      await recomputeCaseState(caseId);
+      toast(`${keys.length} SKU_VISTA aceptados en todas sus carpetas.`);
     }
 
+    async function approveImageGroup(caseIdRaw, groupKeyRaw, silent = false) {
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const groupKey = decodeURIComponent(groupKeyRaw || "");
+      const bundleImages = getReviewBundle(caseId, groupKey);
+      if (!bundleImages.length || !isReviewer()) return;
+      const now = new Date().toISOString();
+      await Promise.all(bundleImages.map(img => updateDoc(imageRef(img.id), {
+        status: IMG_STATUS.APROBADO,
+        active: true,
+        reviewedAt: now,
+        reviewedBy: currentUser(),
+        rejectReason: ""
+      })));
+      await recomputeCaseState(caseId);
+      if (!silent) toast(`${bundleImages.length} archivo(s) aceptados como un SKU_VISTA.`);
+    }
+
+    async function rejectImageGroup(caseIdRaw, groupKeyRaw) {
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const groupKey = decodeURIComponent(groupKeyRaw || "");
+      const bundleImages = getReviewBundle(caseId, groupKey);
+      if (!bundleImages.length || !isReviewer()) return;
+      const domId = reviewBundleDomId(caseId, groupKey);
+      const reason = document.getElementById(`reject_group_${domId}`)?.value.trim() || "Rechazado sin motivo";
+      const now = new Date().toISOString();
+      await Promise.all(bundleImages.map(img => updateDoc(imageRef(img.id), {
+        status: IMG_STATUS.RECHAZADO,
+        active: false,
+        reviewedAt: now,
+        reviewedBy: currentUser(),
+        rejectReason: reason
+      })));
+      const record = cases.find(c => c.id === caseId);
+      let pending = (record?.pendingRejected || []).filter(item => reviewGroupKey(item.sku, item.view) !== groupKey);
+      bundleImages.forEach(img => {
+        pending = upsertPending(pending, {
+          sku: img.sku,
+          view: img.view,
+          folderPath: img.folderPath || "",
+          reason,
+          rejectedAt: now,
+          rejectedBy: currentUser()
+        });
+      });
+      await updateDoc(caseRef(caseId), {
+        estado: STATUS.RECHAZADO,
+        pendingRejected: pending,
+        updatedAt: now,
+        updatedBy: currentUser()
+      });
+      toast(`${bundleImages.length} archivo(s) rechazados en todas las carpetas.`);
+    }
+
+    async function discardImageGroup(caseIdRaw, groupKeyRaw) {
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const groupKey = decodeURIComponent(groupKeyRaw || "");
+      const bundleImages = getReviewBundle(caseId, groupKey);
+      if (!bundleImages.length || !isReviewer()) return;
+      const domId = reviewBundleDomId(caseId, groupKey);
+      const reason = document.getElementById(`reject_group_${domId}`)?.value.trim() || "Descartado";
+      const now = new Date().toISOString();
+      await Promise.all(bundleImages.map(img => updateDoc(imageRef(img.id), {
+        status: IMG_STATUS.DESCARTADO,
+        active: false,
+        reviewedAt: now,
+        reviewedBy: currentUser(),
+        rejectReason: reason
+      })));
+      const record = cases.find(c => c.id === caseId);
+      const expectedViews = (record?.expectedViews || []).filter(item => reviewGroupKey(item.sku, item.view) !== groupKey);
+      const pendingRejected = (record?.pendingRejected || []).filter(item => reviewGroupKey(item.sku, item.view) !== groupKey);
+      await updateDoc(caseRef(caseId), { expectedViews, pendingRejected, updatedAt: now, updatedBy: currentUser() });
+      await recomputeCaseState(caseId);
+      toast(`${bundleImages.length} archivo(s) descartados en todas las carpetas.`);
+    }
+
+    // Compatibilidad con registros/botones antiguos.
     async function approveImage(idRaw, silent = false) {
       const id = decodeURIComponent(idRaw || "");
       const img = images.find(item => item.id === id);
-      if (!img || !isReviewer()) return;
-      const now = new Date().toISOString();
-      await updateDoc(imageRef(id), { status: IMG_STATUS.APROBADO, active: true, reviewedAt: now, reviewedBy: currentUser(), rejectReason: "" });
-      await recomputeCaseState(img.caseId);
-      if (!silent) toast("Imagen aceptada.");
+      if (!img) return;
+      return approveImageGroup(encodeURIComponent(img.caseId), encodeURIComponent(imageReviewGroupKey(img)), silent);
     }
-
     async function rejectImage(idRaw) {
       const id = decodeURIComponent(idRaw || "");
       const img = images.find(item => item.id === id);
-      if (!img || !isReviewer()) return;
-      const reason = document.getElementById(`reject_${id}`)?.value.trim() || "Rechazado sin motivo";
-      const now = new Date().toISOString();
-      await updateDoc(imageRef(id), { status: IMG_STATUS.RECHAZADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
-      const record = cases.find(c => c.id === img.caseId);
-      const pending = upsertPending(record?.pendingRejected || [], { sku: img.sku, view: img.view, folderPath: img.folderPath || "", reason, rejectedAt: now, rejectedBy: currentUser() });
-      await updateDoc(caseRef(img.caseId), { estado: STATUS.RECHAZADO, pendingRejected: pending, updatedAt: now, updatedBy: currentUser() });
-      toast("Imagen rechazada. Vuelve al caso del post.");
+      if (!img) return;
+      return rejectImageGroup(encodeURIComponent(img.caseId), encodeURIComponent(imageReviewGroupKey(img)));
     }
-
     async function discardImage(idRaw) {
       const id = decodeURIComponent(idRaw || "");
       const img = images.find(item => item.id === id);
-      if (!img || !isReviewer()) return;
-      const reason = document.getElementById(`reject_${id}`)?.value.trim() || "Descartado";
-      const now = new Date().toISOString();
-      await updateDoc(imageRef(id), { status: IMG_STATUS.DESCARTADO, active: false, reviewedAt: now, reviewedBy: currentUser(), rejectReason: reason });
-      const record = cases.find(c => c.id === img.caseId);
-      if (record?.expectedViews?.length) await updateDoc(caseRef(img.caseId), { expectedViews: removeExpectedView(record.expectedViews, img), updatedAt: now, updatedBy: currentUser() }).catch(() => null);
-      await recomputeCaseState(img.caseId);
-      toast("Imagen descartada.");
+      if (!img) return;
+      return discardImageGroup(encodeURIComponent(img.caseId), encodeURIComponent(imageReviewGroupKey(img)));
     }
 
     function upsertPending(pending, item) {
@@ -2204,6 +2475,9 @@
     window.approveImage = approveImage;
     window.rejectImage = rejectImage;
     window.discardImage = discardImage;
+    window.approveImageGroup = approveImageGroup;
+    window.rejectImageGroup = rejectImageGroup;
+    window.discardImageGroup = discardImageGroup;
     window.approveSelectedReview = approveSelectedReview;
     window.toggleAllReviewImages = toggleAllReviewImages;
     window.handleReviewImageZoom = handleReviewImageZoom;
