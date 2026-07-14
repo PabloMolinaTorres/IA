@@ -1894,7 +1894,8 @@
       flex-wrap: wrap;
     }
 
-    .metrics-filter select {
+    .metrics-filter select,
+    .metrics-filter input {
       border: 1px solid var(--border);
       background: var(--card2);
       color: var(--text);
@@ -1903,6 +1904,12 @@
       outline: none;
       font-weight: 900;
       font-size: 12px;
+    }
+
+    .metrics-range-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
     }
 
     @media (max-width: 1000px) {
@@ -1932,7 +1939,7 @@
       <div class="brand">
         <div class="logo-box">W</div>
         <div>
-          <h1>WIDA <span class="version">V1.3.1 IA</span></h1>
+          <h1>WIDA <span class="version">V1.3.2 IA</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2242,7 +2249,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.3.0 IA";
+    const APP_VERSION = "V1.3.2 IA";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2346,6 +2353,8 @@ const firebaseConfig = {
     let reviewProcessing = false;
     let aiGenerating = false;
     let metricsPeriod = "week";
+    let metricsCustomStart = "";
+    let metricsCustomEnd = "";
     let masterSort = { field: "prioridad", direction: "asc" };
     let masterSearchQuery = "";
     let workSearchQuery = "";
@@ -6649,40 +6658,128 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       `;
     }
 
+    function metricDateInputValue(date) {
+      const d = parseMetricDate(date);
+      if (!d) return "";
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function startOfRollingDays(days) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - Math.max(0, days - 1));
+      return d;
+    }
+
+    function endOfToday() {
+      const d = new Date();
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+
+    function parseMetricInputDate(value, endOfDay = false) {
+      if (!value) return null;
+      const date = new Date(`${value}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return null;
+      if (endOfDay) date.setHours(23, 59, 59, 999);
+      return date;
+    }
+
+    function ensureCustomMetricRange() {
+      if (!metricsCustomStart) metricsCustomStart = metricDateInputValue(startOfRollingDays(7));
+      if (!metricsCustomEnd) metricsCustomEnd = metricDateInputValue(endOfToday());
+    }
+
     function setMetricsPeriod(period) {
-      metricsPeriod = ["week", "month", "all"].includes(period) ? period : "week";
+      const allowed = ["week", "month", "custom", "all"];
+      metricsPeriod = allowed.includes(period) ? period : "week";
+      if (metricsPeriod === "custom") ensureCustomMetricRange();
+      renderMetricsPanel();
+    }
+
+    function setMetricsCustomRange() {
+      const startEl = document.getElementById("metricsCustomStart");
+      const endEl = document.getElementById("metricsCustomEnd");
+      metricsCustomStart = startEl?.value || "";
+      metricsCustomEnd = endEl?.value || "";
+      metricsPeriod = "custom";
       renderMetricsPanel();
     }
 
     function metricPeriodRange(period) {
       const now = new Date();
-      const end = new Date(now);
-      end.setHours(23, 59, 59, 999);
+      const end = endOfToday();
 
       if (period === "month") {
-        const start = startOfMonth(now);
-        return { start, end, label: `Mes desde ${formatDate(start.toISOString()).split(" ")[0]}` };
+        const start = startOfRollingDays(30);
+        return {
+          start,
+          end,
+          label: `Últimos 30 días · ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(end.toISOString()).split(" ")[0]}`
+        };
+      }
+
+      if (period === "custom") {
+        ensureCustomMetricRange();
+        let start = parseMetricInputDate(metricsCustomStart, false);
+        let customEnd = parseMetricInputDate(metricsCustomEnd, true);
+
+        if (start && customEnd && start > customEnd) {
+          const temp = start;
+          start = new Date(customEnd);
+          start.setHours(0, 0, 0, 0);
+          customEnd = new Date(temp);
+          customEnd.setHours(23, 59, 59, 999);
+        }
+
+        return {
+          start,
+          end: customEnd,
+          label: start && customEnd
+            ? `Rango personalizado · ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(customEnd.toISOString()).split(" ")[0]}`
+            : "Rango personalizado"
+        };
       }
 
       if (period === "all") {
         return { start: null, end: null, label: "Histórico completo" };
       }
 
-      const start = startOfWeek(now);
-      return { start, end: endOfWeekFromStart(start), label: `Semana ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(endOfWeekFromStart(start).toISOString()).split(" ")[0]}` };
+      const start = startOfRollingDays(7);
+      return {
+        start,
+        end,
+        label: `Últimos 7 días · ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(end.toISOString()).split(" ")[0]}`
+      };
     }
 
     function dateInRange(value, start, end) {
       const date = parseMetricDate(value);
       if (!date) return false;
-
-      return date >= start && date <= end;
+      if (start && date < start) return false;
+      if (end && date > end) return false;
+      return true;
     }
 
     function metricEventMatchesPeriod(event, period) {
       const { start, end } = metricPeriodRange(period);
       if (!start || !end) return true;
       return dateInRange(event.fecha, start, end);
+    }
+
+    function metricRecordDate(record) {
+      return parseMetricDate(getLastMasterActivityDate(record) || record.reviewedAt || record.downloadedAt || record.uploadedAt || record.updatedAt || record.createdAt);
+    }
+
+    function metricRecordMatchesPeriod(record, period) {
+      const { start, end } = metricPeriodRange(period);
+      if (!start || !end) return true;
+      const date = metricRecordDate(record);
+      if (!date) return false;
+      return date >= start && date <= end;
     }
 
     function recordsWithSuperiorStatus() {
@@ -6694,8 +6791,9 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     }
 
     function calculateSimpleMetrics(period = metricsPeriod) {
-      const safePeriod = ["week", "month", "all"].includes(period) ? period : "week";
-      const masterRows = recordsWithSuperiorStatus();
+      const safePeriod = ["week", "month", "custom", "all"].includes(period) ? period : "week";
+      const allMasterRows = recordsWithSuperiorStatus();
+      const masterRows = allMasterRows.filter(record => metricRecordMatchesPeriod(record, safePeriod));
       const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
       const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
 
@@ -6708,6 +6806,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const total = masterRows.length;
       const okRate = total ? Math.round((ok / total) * 1000) / 10 : 0;
       const pendingRate = total ? Math.round((pending / total) * 1000) / 10 : 0;
+      const periodRange = metricPeriodRange(safePeriod);
 
       const summaryRows = [
         { Estado: "OK", Cantidad: ok, Porcentaje: `${okRate}%` },
@@ -6721,7 +6820,8 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         workEvents,
         reviewEvents,
         masterRows,
-        ...metricPeriodRange(safePeriod)
+        allMasterRows,
+        ...periodRange
       };
     }
 
@@ -6764,18 +6864,28 @@ Después podrás volver a cargar este SKU desde Excel o manual.
 
       if (panel.classList.contains("hidden")) return;
 
-      const { totals } = calculateSimpleMetrics(metricsPeriod);
+      if (metricsPeriod === "custom") ensureCustomMetricRange();
+      const data = calculateSimpleMetrics(metricsPeriod);
+      const { totals } = data;
+      const customStartValue = metricsCustomStart || metricDateInputValue(startOfRollingDays(7));
+      const customEndValue = metricsCustomEnd || metricDateInputValue(endOfToday());
 
       panel.innerHTML = `
         <div class="metrics-title">
-          <h3>Métricas</h3>
+          <div>
+            <h3>Métricas</h3>
+            <small class="metrics-range-label">${escapeHtml(data.label)}</small>
+          </div>
           <div class="panel-title-actions">
             <div class="metrics-filter">
               <select onchange="setMetricsPeriod(this.value)">
-                <option value="week" ${metricsPeriod === "week" ? "selected" : ""}>Semana</option>
-                <option value="month" ${metricsPeriod === "month" ? "selected" : ""}>Mes</option>
+                <option value="week" ${metricsPeriod === "week" ? "selected" : ""}>Últimos 7 días</option>
+                <option value="month" ${metricsPeriod === "month" ? "selected" : ""}>Últimos 30 días</option>
+                <option value="custom" ${metricsPeriod === "custom" ? "selected" : ""}>Entre fechas</option>
                 <option value="all" ${metricsPeriod === "all" ? "selected" : ""}>Histórico</option>
               </select>
+              <input id="metricsCustomStart" type="date" value="${escapeHtml(customStartValue)}" onchange="setMetricsCustomRange()" title="Desde" />
+              <input id="metricsCustomEnd" type="date" value="${escapeHtml(customEndValue)}" onchange="setMetricsCustomRange()" title="Hasta" />
             </div>
             <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Excel</button>
             <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar</button>
@@ -6799,10 +6909,12 @@ Después podrás volver a cargar este SKU desde Excel o manual.
               </tr>
             </thead>
             <tbody>
-              <tr><td><strong>Total</strong></td><td>${totals.total}</td></tr>
+              <tr><td><strong>Total del rango</strong></td><td>${totals.total}</td></tr>
               <tr><td><strong>OK</strong></td><td>${totals.ok}</td></tr>
               <tr><td><strong>Pendiente</strong></td><td>${totals.pending}</td></tr>
               <tr><td><strong>Rechazos</strong></td><td>${totals.rejectionsToShow}</td></tr>
+              <tr><td><strong>Fotos trabajadas</strong></td><td>${data.workEvents.length}</td></tr>
+              <tr><td><strong>Eventos revisión</strong></td><td>${data.reviewEvents.length}</td></tr>
             </tbody>
           </table>
         </div>
@@ -6847,8 +6959,9 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       if (!requireAdmin()) return;
 
       const periods = [
-        { key: "week", label: "Semana" },
-        { key: "month", label: "Mes" },
+        { key: "week", label: "Últimos 7 días" },
+        { key: "month", label: "Últimos 30 días" },
+        ...(metricsPeriod === "custom" ? [{ key: "custom", label: "Entre fechas" }] : []),
         { key: "all", label: "Histórico" }
       ];
 
@@ -6908,7 +7021,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(masterMetricsRows())), "Master completo");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(detailRows, "Sin eventos registrados")), "Eventos");
-      XLSX.writeFile(workbook, `metricas_flujo_ia_${dateStamp()}.xlsx`);
+      XLSX.writeFile(workbook, `metricas_wida_${dateStamp()}.xlsx`);
     }
 
     function uniqueZipFileName(fileName, sku, usedNames) {
@@ -8168,6 +8281,7 @@ ${image.name || "Imagen sin nombre"}`);
       saveAdminSkuDetails,
       toggleMetricsPanel,
       setMetricsPeriod,
+      setMetricsCustomRange,
       downloadMetricsExcel,
       openMasterHistoryViewer,
       closeMasterHistoryViewer,
