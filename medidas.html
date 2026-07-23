@@ -879,6 +879,71 @@
 
     body.dark .toast { background: white; color: #111; }
 
+
+
+    .case-progress {
+      width: 100%;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .case-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--greenFalabella), var(--greenDark));
+      transition: width .2s ease;
+    }
+
+    .case-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .case-summary .info-box span { font-size: 18px; font-weight: 900; }
+
+    .case-users {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .case-user-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 11px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .case-sku-list { display: grid; gap: 10px; }
+
+    .case-sku-row {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.25fr) minmax(150px, .9fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 14px;
+    }
+
+    .case-sku-row strong { display: block; font-size: 14px; }
+    .case-sku-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; font-weight: 700; }
+    .case-sku-actions { display: flex; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+    .case-download-lock { margin-top: 12px; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.4; }
+
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; flex-wrap: wrap; }
@@ -891,6 +956,9 @@
       .sku-list { max-height: none; }
       .measure-row { grid-template-columns: 1fr; }
       .master-filter-bar { grid-template-columns: 1fr; }
+      .case-summary { grid-template-columns: repeat(2, 1fr); }
+      .case-sku-row { grid-template-columns: 1fr; }
+      .case-sku-actions { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -901,7 +969,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>WIDA Medidas <span class="version">V1.4</span></h1>
+          <h1>WIDA Medidas <span class="version">V1.5</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -998,7 +1066,7 @@
             <span id="workCount" class="pill status">0</span>
           </div>
           <div class="list-search-bar">
-            <input id="workSearch" class="master-filter-input" placeholder="Buscar SKU(s): 123 456,789" oninput="renderWork()" />
+            <input id="workSearch" class="master-filter-input" placeholder="Buscar SKU o caso" oninput="renderWork()" />
           </div>
           <div id="workList" class="sku-list"></div>
         </aside>
@@ -1012,7 +1080,7 @@
       <div class="layout">
         <aside class="list-panel">
           <div class="panel-title">
-            <span>Tomados</span>
+            <span>Casos en carga</span>
             <span id="uploadCount" class="pill status">0</span>
           </div>
           <div id="uploadList" class="sku-list"></div>
@@ -1045,7 +1113,7 @@
           <span id="masterCount" class="pill status">0</span>
         </div>
         <div class="master-filter-bar">
-          <input id="masterSearch" class="master-filter-input" placeholder="Buscar SKU(s), subclase o medida" oninput="renderMaster()" />
+          <input id="masterSearch" class="master-filter-input" placeholder="Buscar caso, SKU, subclase o medida" oninput="renderMaster()" />
           <button class="btn btn-soft" onclick="exportMasterExcel()">Exportar Excel</button>
           <button class="btn btn-primary" onclick="downloadAllMaster()">Descargar todo</button>
           <button class="btn btn-soft" onclick="renderMaster()">Actualizar</button>
@@ -1109,7 +1177,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.4";
+    const APP_VERSION = "V1.5";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_medidas";
@@ -1142,7 +1210,9 @@
       GENERANDO_IA: "Generando IA",
       ERROR_IA: "Error IA",
       TRABAJO: "En trabajo",
+      LISTO: "Trabajo completado",
       REVISION: "En revisión",
+      APROBADO: "Aprobado",
       DESCARGADO: "Descargado",
       RECHAZADO: "Rechazado"
     };
@@ -1174,6 +1244,8 @@
       Sandra: ROLES.REVISOR,
       Rossana: ROLES.REVISOR
     };
+
+    const ASSIGNABLE_USERS = Object.keys(USER_ROLES).filter(user => USER_ROLES[user] === ROLES.RETOCADOR);
 
     const ROLE_TABS = {
       [ROLES.ADMIN]: ["work", "upload", "review", "master"],
@@ -1250,6 +1322,7 @@
         saveManualRecord,
         selectWorkRecord,
         selectUploadRecord,
+        selectUploadCase,
         selectReviewRecord,
         takeRecord,
         releaseRecord,
@@ -1262,8 +1335,11 @@
         generateAiForPendingRecords,
         generateAiOptions,
         handleWorkedUpload,
+        saveCaseAssignments,
+        downloadApprovedCase,
         approveReviewRecord,
         rejectReviewRecord,
+        renderWork,
         renderMaster,
         exportMasterExcel,
         downloadAllMaster,
@@ -1470,12 +1546,13 @@
     }
 
     function renderStats() {
+      const cases = getAllCases();
       const stats = [
-        ["Pendientes", records.filter(r => r.estado === STATUS.PENDIENTE).length],
-        ["En trabajo", records.filter(r => r.estado === STATUS.TRABAJO).length],
-        ["Revisión", records.filter(r => r.estado === STATUS.REVISION).length],
-        ["Master", getMasterRecords().length],
-        ["Rechazados", records.filter(r => r.estado === STATUS.RECHAZADO || r.estado === STATUS.ERROR_IA).length]
+        ["Casos activos", cases.filter(item => !item.records.every(record => record.estado === STATUS.DESCARGADO)).length],
+        ["SKU en trabajo", records.filter(r => [STATUS.TRABAJO, STATUS.LISTO].includes(r.estado)).length],
+        ["SKU en revisión", records.filter(r => r.estado === STATUS.REVISION).length],
+        ["Aprobados sin descargar", records.filter(r => r.estado === STATUS.APROBADO).length],
+        ["Master", getMasterRecords().length]
       ];
       document.getElementById("stats").innerHTML = stats.map(([label, value]) => `
         <article class="stat"><small>${escapeHtml(label)}</small><strong>${value}</strong></article>
@@ -1485,6 +1562,7 @@
     function statusClass(status) {
       const clean = normalizeText(status);
       if (clean.includes("pendiente")) return "status-pendiente";
+      if (clean.includes("completado")) return "status-generando";
       if (clean.includes("trabajo")) return "status-trabajo";
       if (clean.includes("revision")) return "status-revision";
       if (clean.includes("descargado") || clean.includes("aprobado")) return "status-descargado";
@@ -1514,6 +1592,124 @@
 
     function docIdFromSku(sku) {
       return safeFileName(String(sku || "").trim()).replace(/[^a-zA-Z0-9_-]/g, "_") || uid();
+    }
+
+    function createCaseId(name = "caso") {
+      const base = safeFileName(name).toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "caso";
+      return `${base}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+    }
+
+    function docIdFromCaseSku(caseId, sku) {
+      return safeFileName(`${caseId}__${sku}`).replace(/[^a-zA-Z0-9_-]/g, "_") || uid();
+    }
+
+    function getCaseId(record) {
+      return String(record?.caseId || `legacy_${record?.id || record?.sku || uid()}`);
+    }
+
+    function getCaseName(record) {
+      return String(record?.caseName || `Caso ${record?.sku || "sin nombre"}`);
+    }
+
+    function getCaseRecords(caseIdRaw) {
+      const caseId = String(caseIdRaw || "");
+      return records
+        .filter(record => getCaseId(record) === caseId)
+        .sort((a, b) => String(a.sku || "").localeCompare(String(b.sku || ""), "es", { numeric: true }));
+    }
+
+    function getAllCases(inputRecords = records) {
+      const map = new Map();
+      (inputRecords || []).forEach(record => {
+        const caseId = getCaseId(record);
+        if (!map.has(caseId)) map.set(caseId, { caseId, caseName: getCaseName(record), records: [] });
+        map.get(caseId).records.push(record);
+      });
+      return [...map.values()].sort((a, b) => {
+        const dateA = Math.max(...a.records.map(record => new Date(record.updatedAt || record.createdAt || 0).getTime() || 0));
+        const dateB = Math.max(...b.records.map(record => new Date(record.updatedAt || record.createdAt || 0).getTime() || 0));
+        return dateB - dateA;
+      });
+    }
+
+    function getRecordAssignedUsers(record) {
+      const values = Array.isArray(record?.assignedUsers) ? record.assignedUsers : [];
+      return [...new Set(values.map(value => String(value || "").trim()).filter(Boolean))];
+    }
+
+    function getCaseAssignedUsers(caseIdRaw) {
+      const users = getCaseRecords(caseIdRaw).flatMap(record => getRecordAssignedUsers(record));
+      return [...new Set(users)].sort((a, b) => a.localeCompare(b, "es"));
+    }
+
+    function caseAccessibleToCurrentUser(caseIdRaw) {
+      if (isAdmin()) return true;
+      if (getUserRole() !== ROLES.RETOCADOR) return false;
+      const caseRecords = getCaseRecords(caseIdRaw);
+      const assigned = getCaseAssignedUsers(caseIdRaw);
+      if (!assigned.length) return true;
+      return assigned.includes(currentUser()) || caseRecords.some(record => record.editor === currentUser());
+    }
+
+    function getCaseProgress(caseIdRaw) {
+      const caseRecords = getCaseRecords(caseIdRaw);
+      const total = caseRecords.length;
+      const workReadyStatuses = [STATUS.LISTO, STATUS.REVISION, STATUS.APROBADO, STATUS.DESCARGADO];
+      const completed = caseRecords.filter(record => workReadyStatuses.includes(record.estado)).length;
+      const approved = caseRecords.filter(record => [STATUS.APROBADO, STATUS.DESCARGADO].includes(record.estado)).length;
+      const inReview = caseRecords.filter(record => record.estado === STATUS.REVISION).length;
+      const rejected = caseRecords.filter(record => [STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado)).length;
+      const working = caseRecords.filter(record => record.estado === STATUS.TRABAJO).length;
+      const pending = caseRecords.filter(record => record.estado === STATUS.PENDIENTE).length;
+      const downloaded = caseRecords.filter(record => record.estado === STATUS.DESCARGADO).length;
+      return {
+        total,
+        completed,
+        approved,
+        inReview,
+        rejected,
+        working,
+        pending,
+        downloaded,
+        percent: total ? Math.round((completed / total) * 100) : 0,
+        approvalPercent: total ? Math.round((approved / total) * 100) : 0,
+        allWorkReady: total > 0 && completed === total,
+        allApprovedForDownload: total > 0 && caseRecords.every(record => record.estado === STATUS.APROBADO),
+        allDownloaded: total > 0 && downloaded === total
+      };
+    }
+
+    function caseStatusLabel(caseIdRaw) {
+      const progress = getCaseProgress(caseIdRaw);
+      if (progress.allDownloaded) return STATUS.DESCARGADO;
+      if (progress.allApprovedForDownload) return "Aprobado completo";
+      if (progress.rejected) return "Con rechazos";
+      if (progress.inReview || progress.approved) return STATUS.REVISION;
+      if (progress.completed) return `${progress.completed}/${progress.total} cargados`;
+      if (progress.working) return STATUS.TRABAJO;
+      return STATUS.PENDIENTE;
+    }
+
+    function renderCaseProgress(caseIdRaw, mode = "work") {
+      const progress = getCaseProgress(caseIdRaw);
+      const percent = mode === "approval" ? progress.approvalPercent : progress.percent;
+      return `<div class="case-progress"><div class="case-progress-bar" style="width:${percent}%"></div></div>`;
+    }
+
+    async function advanceCaseToReviewIfComplete(caseIdRaw) {
+      const caseRecords = getCaseRecords(caseIdRaw);
+      if (!caseRecords.length) return false;
+      const accepted = [STATUS.LISTO, STATUS.REVISION, STATUS.APROBADO];
+      if (!caseRecords.every(record => accepted.includes(record.estado))) return false;
+      const now = new Date().toISOString();
+      const ready = caseRecords.filter(record => record.estado === STATUS.LISTO);
+      for (const record of ready) {
+        record.estado = STATUS.REVISION;
+        record.sentToReviewAt = now;
+        record.updatedAt = now;
+        await saveRecord(record);
+      }
+      return ready.length > 0;
     }
 
     function normalizeText(value) {
@@ -1793,6 +1989,10 @@
         }
 
         const now = new Date().toISOString();
+        const fileBase = file.name.replace(/\.[^.]+$/, "").trim() || "Caso";
+        const caseName = `${fileBase} · ${new Date().toLocaleString("es-CL")}`;
+        const caseId = createCaseId(fileBase);
+        const initialAssignedUsers = getUserRole() === ROLES.RETOCADOR ? [currentUser()] : [];
         let saved = 0;
         let skipped = 0;
 
@@ -1807,21 +2007,29 @@
             continue;
           }
 
-          const id = docIdFromSku(sku);
-          const existing = getRecord(id);
+          const id = docIdFromCaseSku(caseId, sku);
           const record = {
-            ...(existing || {}),
             id,
+            caseId,
+            caseName,
+            caseCreatedAt: now,
+            assignedUsers: initialAssignedUsers,
             sku,
             medidaOriginal,
             subclase,
             vistaExcel,
-            vistaSeleccionada: existing?.vistaSeleccionada || vistaExcel || DEFAULT_VIEW,
-            imagenBaseUrl: existing?.imagenBaseUrl || buildFalabellaViewUrl(sku, vistaExcel || DEFAULT_VIEW),
-            medidas: existing?.medidas?.length ? existing.medidas : parseMeasures(medidaOriginal, subclase),
-            estado: existing?.estado || STATUS.PENDIENTE,
-            creadoPor: existing?.creadoPor || currentUser(),
-            createdAt: existing?.createdAt || now,
+            vistaSeleccionada: vistaExcel || DEFAULT_VIEW,
+            imagenBaseUrl: buildFalabellaViewUrl(sku, vistaExcel || DEFAULT_VIEW),
+            medidas: parseMeasures(medidaOriginal, subclase),
+            estado: STATUS.PENDIENTE,
+            editor: "",
+            trabajadoPor: "",
+            revisor: "",
+            motivoRechazo: "",
+            generatedImages: [],
+            imageHistory: [],
+            creadoPor: currentUser(),
+            createdAt: now,
             updatedAt: now
           };
 
@@ -1829,7 +2037,7 @@
           saved++;
         }
 
-        toast(`${saved} SKU(s) cargados. ${skipped ? `${skipped} fila(s) omitida(s).` : ""}`);
+        toast(`Caso creado con ${saved} SKU(s). ${skipped ? `${skipped} fila(s) omitida(s).` : ""}`);
       } catch (error) {
         console.error(error);
         alert("No se pudo leer el archivo. Revisa formato Excel/CSV.");
@@ -1849,21 +2057,31 @@
       }
 
       const now = new Date().toISOString();
-      const id = docIdFromSku(sku);
-      const existing = getRecord(id);
+      const caseName = `Manual ${sku}`;
+      const caseId = createCaseId(caseName);
+      const id = docIdFromCaseSku(caseId, sku);
       const record = {
-        ...(existing || {}),
         id,
+        caseId,
+        caseName,
+        caseCreatedAt: now,
+        assignedUsers: getUserRole() === ROLES.RETOCADOR ? [currentUser()] : [],
         sku,
         medidaOriginal,
         subclase,
         vistaExcel,
-        vistaSeleccionada: existing?.vistaSeleccionada || vistaExcel,
-        imagenBaseUrl: existing?.imagenBaseUrl || buildFalabellaViewUrl(sku, vistaExcel),
-        medidas: existing?.medidas?.length ? existing.medidas : parseMeasures(medidaOriginal, subclase),
-        estado: existing?.estado || STATUS.PENDIENTE,
-        creadoPor: existing?.creadoPor || currentUser(),
-        createdAt: existing?.createdAt || now,
+        vistaSeleccionada: vistaExcel,
+        imagenBaseUrl: buildFalabellaViewUrl(sku, vistaExcel),
+        medidas: parseMeasures(medidaOriginal, subclase),
+        estado: STATUS.PENDIENTE,
+        editor: "",
+        trabajadoPor: "",
+        revisor: "",
+        motivoRechazo: "",
+        generatedImages: [],
+        imageHistory: [],
+        creadoPor: currentUser(),
+        createdAt: now,
         updatedAt: now
       };
 
@@ -1871,7 +2089,7 @@
       ["manualSku", "manualMedida", "manualSubclase", "manualVista"].forEach(id => { document.getElementById(id).value = ""; });
       document.getElementById("manualPanel").classList.add("hidden");
       selectedWorkId = record.id;
-      toast(`SKU ${sku} agregado.`);
+      toast(`SKU ${sku} agregado como caso individual.`);
     }
 
     function parseMeasures(text, subclase = "") {
@@ -1955,8 +2173,10 @@
 
     function canEditRecord(record) {
       if (!record) return false;
-      if (isAdmin()) return true;
-      return getUserRole() === ROLES.RETOCADOR && (!record.editor || record.editor === currentUser()) && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
+      if (isAdmin()) return [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
+      if (getUserRole() !== ROLES.RETOCADOR) return false;
+      if (!caseAccessibleToCurrentUser(getCaseId(record))) return false;
+      return (!record.editor || record.editor === currentUser()) && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
     }
 
     function tokenizeSkuSearch(value = "") {
@@ -1969,8 +2189,8 @@
     function recordMatchesSkuTokens(record, rawSearch = "") {
       const tokens = tokenizeSkuSearch(rawSearch);
       if (!tokens.length) return true;
-      const sku = normalizeText(record?.sku || "");
-      return tokens.some(token => sku.includes(token));
+      const haystack = normalizeText(`${record?.sku || ""} ${getCaseName(record)} ${record?.caseId || ""}`);
+      return tokens.some(token => haystack.includes(token));
     }
 
     function recordMatchesMasterSearch(record, rawSearch = "") {
@@ -1979,7 +2199,7 @@
       const tokens = tokenizeSkuSearch(search);
       if (tokens.length > 1) return recordMatchesSkuTokens(record, search);
       const normalized = normalizeText(search);
-      return [record.sku, record.subclase, record.medidaOriginal, record.editor, record.revisor]
+      return [record.sku, getCaseName(record), record.caseId, record.subclase, record.medidaOriginal, record.editor, record.trabajadoPor, record.revisor]
         .some(value => normalizeText(value).includes(normalized));
     }
 
@@ -1988,10 +2208,11 @@
       const role = getUserRole();
       const workSearch = document.getElementById("workSearch")?.value || "";
       return records.filter(record => {
-        if ([STATUS.REVISION, STATUS.DESCARGADO].includes(record.estado)) return false;
+        if ([STATUS.LISTO, STATUS.REVISION, STATUS.APROBADO, STATUS.DESCARGADO].includes(record.estado)) return false;
         if (!recordMatchesSkuTokens(record, workSearch)) return false;
         if (role === ROLES.ADMIN) return true;
         if (role === ROLES.RETOCADOR) {
+          if (!caseAccessibleToCurrentUser(getCaseId(record))) return false;
           if (record.estado === STATUS.TRABAJO) return record.editor === user;
           return [STATUS.PENDIENTE, STATUS.RECHAZADO, STATUS.ERROR_IA].includes(record.estado);
         }
@@ -1999,18 +2220,21 @@
       });
     }
 
-    function getUploadRecords() {
-      const user = currentUser();
-      const role = getUserRole();
-      return records.filter(record => {
-        if (record.estado !== STATUS.TRABAJO) return false;
-        if (role === ROLES.ADMIN) return true;
-        return record.editor === user;
+    function getUploadCases() {
+      const uploadStatuses = [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.LISTO, STATUS.RECHAZADO, STATUS.ERROR_IA];
+      return getAllCases().filter(item => {
+        if (!item.records.some(record => uploadStatuses.includes(record.estado))) return false;
+        if (isAdmin()) return true;
+        return caseAccessibleToCurrentUser(item.caseId);
       });
     }
 
+    function getUploadRecords() {
+      return getUploadCases().flatMap(item => item.records);
+    }
+
     function getReviewRecords() {
-      return records.filter(record => record.estado === STATUS.REVISION);
+      return records.filter(record => [STATUS.REVISION, STATUS.APROBADO].includes(record.estado));
     }
 
     function getMasterRecords() {
@@ -2026,6 +2250,7 @@
           </div>
           <div class="sku-brand">
             ${escapeHtml(record.subclase || "Sin subclase")}<br>
+            ${escapeHtml(getCaseName(record))}<br>
             Vista: ${escapeHtml(record.vistaSeleccionada || record.vistaExcel || DEFAULT_VIEW)} · ${record.editor ? `Editor: ${escapeHtml(record.editor)}` : "Sin editor"}
           </div>
         </div>
@@ -2055,8 +2280,12 @@
         return;
       }
 
+      const caseId = getCaseId(record);
+      const caseRecords = getCaseRecords(caseId);
+      const progress = getCaseProgress(caseId);
+      const assignedUsers = getCaseAssignedUsers(caseId);
       const editable = canEditRecord(record);
-      const canTake = recordCanBeWorked(record) && (!record.editor || record.editor === currentUser() || isAdmin());
+      const canTake = recordCanBeWorked(record) && canEditRecord(record);
       const canRelease = record.estado === STATUS.TRABAJO && (record.editor === currentUser() || isAdmin());
       const canGenerate = canGenerateAiForRecord(record);
 
@@ -2064,13 +2293,38 @@
         <div class="detail-header">
           <div>
             <h2>${escapeHtml(record.sku)}</h2>
-            <small>${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
+            <small>${escapeHtml(getCaseName(record))} · ${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
           </div>
           ${statusPill(record.estado)}
         </div>
 
+        <div class="case-summary">
+          <div class="info-box"><small>SKU del caso</small><span>${progress.total}</span></div>
+          <div class="info-box"><small>Cargados</small><span>${progress.completed}/${progress.total}</span></div>
+          <div class="info-box"><small>Aprobados</small><span>${progress.approved}/${progress.total}</span></div>
+          <div class="info-box"><small>Estado caso</small><span style="font-size:14px;">${escapeHtml(caseStatusLabel(caseId))}</span></div>
+        </div>
+        ${renderCaseProgress(caseId)}
+
+        <div class="section-block" style="margin-top:14px;">
+          <div class="section-head">
+            <div><strong>Usuarios asignados al caso</strong><br><small>Todos pueden aportar distintos SKU del mismo caso</small></div>
+            ${isAdmin() ? `<button class="btn btn-primary btn-small" onclick="saveCaseAssignments('${encodeForInline(caseId)}')">Guardar usuarios</button>` : ""}
+          </div>
+          ${isAdmin() ? `
+            <div class="case-users">
+              ${ASSIGNABLE_USERS.map(user => `
+                <label class="case-user-option">
+                  <input class="case-user-check" type="checkbox" value="${escapeHtml(user)}" ${assignedUsers.includes(user) ? "checked" : ""}>
+                  ${escapeHtml(user)}
+                </label>
+              `).join("")}
+            </div>
+          ` : `<div class="master-muted">${assignedUsers.length ? escapeHtml(assignedUsers.join(", ")) : "Caso abierto para cualquier retocador."}</div>`}
+        </div>
+
         <div class="info-grid">
-          <div class="info-box"><small>Editor</small><span>${escapeHtml(record.editor || "Sin tomar")}</span></div>
+          <div class="info-box"><small>Editor SKU</small><span>${escapeHtml(record.editor || "Sin tomar")}</span></div>
           <div class="info-box"><small>Actualizado</small><span>${escapeHtml(formatDate(record.updatedAt) || "-")}</span></div>
           <div class="info-box"><small>Creado por</small><span>${escapeHtml(record.creadoPor || "-")}</span></div>
         </div>
@@ -2119,9 +2373,7 @@
         </div>
 
         <div class="section-block">
-          <div class="section-head">
-            <div><strong>Vista previa</strong><br><small>Simulación referencial antes de IA</small></div>
-          </div>
+          <div class="section-head"><div><strong>Vista previa</strong><br><small>Simulación referencial antes de IA</small></div></div>
           ${buildMeasurementPreview(record)}
         </div>
 
@@ -2136,6 +2388,22 @@
       `;
 
       ensureMediaLoaded(record.id);
+    }
+
+    async function saveCaseAssignments(caseIdRaw) {
+      if (!requireAdmin()) return;
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const selected = [...document.querySelectorAll(".case-user-check:checked")].map(input => input.value);
+      const caseRecords = getCaseRecords(caseId);
+      if (!caseRecords.length) return;
+      const now = new Date().toISOString();
+      for (const record of caseRecords) {
+        record.assignedUsers = [...new Set(selected)];
+        record.updatedAt = now;
+        record.updatedBy = currentUser();
+        await saveRecord(record);
+      }
+      toast(`Usuarios del caso actualizados: ${selected.length ? selected.join(", ") : "caso abierto"}.`);
     }
 
     function renderMeasureRows(measures, editable = true) {
@@ -2377,7 +2645,7 @@
       record.motivoRechazo = "";
       record.updatedAt = now;
       await saveRecord(record);
-      selectedUploadId = record.id;
+      selectedUploadId = getCaseId(record);
       activeTab = "upload";
       toast(`SKU ${record.sku} tomado.`);
       refresh();
@@ -2413,52 +2681,115 @@
       toast("SKU eliminado.");
     }
 
+    function renderCaseListItem(item, selectedCaseId, clickFn) {
+      const progress = getCaseProgress(item.caseId);
+      const users = getCaseAssignedUsers(item.caseId);
+      return `
+        <div class="sku-item ${item.caseId === selectedCaseId ? "active" : ""}" onclick="${clickFn}('${encodeForInline(item.caseId)}')">
+          <div class="sku-item-top">
+            <div class="sku-code">${escapeHtml(item.caseName)}</div>
+            ${statusPill(caseStatusLabel(item.caseId))}
+          </div>
+          <div class="sku-brand">
+            ${progress.completed}/${progress.total} SKU cargados<br>
+            ${users.length ? `Usuarios: ${escapeHtml(users.join(", "))}` : "Caso abierto"}
+          </div>
+          ${renderCaseProgress(item.caseId)}
+        </div>
+      `;
+    }
+
     function renderUpload() {
-      const list = getUploadRecords();
+      const list = getUploadCases();
       document.getElementById("uploadCount").textContent = list.length;
-      if (!selectedUploadId || !list.some(record => record.id === selectedUploadId)) selectedUploadId = list[0]?.id || "";
+      if (!selectedUploadId || !list.some(item => item.caseId === selectedUploadId)) selectedUploadId = list[0]?.caseId || "";
       document.getElementById("uploadList").innerHTML = list.length
-        ? list.map(record => renderSkuItem(record, selectedUploadId, "selectUploadRecord")).join("")
-        : `<div class="empty">Sin SKU tomados.</div>`;
+        ? list.map(item => renderCaseListItem(item, selectedUploadId, "selectUploadCase")).join("")
+        : `<div class="empty">Sin casos pendientes de carga.</div>`;
       renderUploadDetail();
     }
 
+    function selectUploadCase(caseIdRaw) {
+      selectedUploadId = decodeURIComponent(caseIdRaw || "");
+      renderUpload();
+    }
+
     function selectUploadRecord(idRaw) {
-      selectedUploadId = decodeURIComponent(idRaw || "");
+      const record = getRecord(decodeURIComponent(idRaw || ""));
+      if (!record) return;
+      selectedUploadId = getCaseId(record);
       renderUpload();
     }
 
     function renderUploadDetail() {
-      const record = getRecord(selectedUploadId);
+      const caseRecords = getCaseRecords(selectedUploadId);
       const el = document.getElementById("uploadDetail");
-      if (!record) {
-        el.innerHTML = `<div class="empty">Selecciona un SKU tomado.</div>`;
+      if (!caseRecords.length) {
+        el.innerHTML = `<div class="empty">Selecciona un caso.</div>`;
         return;
       }
+
+      const caseId = selectedUploadId;
+      const progress = getCaseProgress(caseId);
+      const users = getCaseAssignedUsers(caseId);
+      const caseName = getCaseName(caseRecords[0]);
 
       el.innerHTML = `
         <div class="detail-header">
           <div>
-            <h2>${escapeHtml(record.sku)}</h2>
-            <small>${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
+            <h2>${escapeHtml(caseName)}</h2>
+            <small>${progress.total} SKU · ${users.length ? `Usuarios: ${escapeHtml(users.join(", "))}` : "Caso abierto para retocadores"}</small>
           </div>
-          ${statusPill(record.estado)}
+          ${statusPill(caseStatusLabel(caseId))}
         </div>
 
-        <div class="section-block">
-          <div class="section-head"><div><strong>Medidas</strong><br><small>Revisa antes de subir</small></div></div>
-          ${buildMeasurementPreview(record)}
+        <div class="case-summary">
+          <div class="info-box"><small>Total</small><span>${progress.total}</span></div>
+          <div class="info-box"><small>Cargados</small><span>${progress.completed}</span></div>
+          <div class="info-box"><small>En trabajo</small><span>${progress.working}</span></div>
+          <div class="info-box"><small>Faltantes</small><span>${Math.max(0, progress.total - progress.completed)}</span></div>
         </div>
+        ${renderCaseProgress(caseId)}
 
-        <label class="upload-box" for="workedInput">
-          <strong>Subir imagen trabajada</strong>
-          <small>JPG, PNG, WEBP o AVIF. Máximo 10 MB por imagen.</small>
-        </label>
-        <input id="workedInput" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
-
-        <div class="actions">
-          ${isAdmin() ? `<button class="btn btn-primary" onclick="generateAiOptions('${encodeForInline(record.id)}')">Generar con IA</button>` : ""}
-          <button class="btn btn-soft" onclick="setTab('work')">Volver</button>
+        <div class="section-block" style="margin-top:14px;">
+          <div class="section-head">
+            <div><strong>SKU del caso</strong><br><small>El caso pasará a revisión únicamente al completar la totalidad</small></div>
+          </div>
+          <div class="case-sku-list">
+            ${caseRecords.map(record => {
+              const canTake = recordCanBeWorked(record) && canEditRecord(record);
+              const canUpload = record.estado === STATUS.TRABAJO && (isAdmin() || record.editor === currentUser());
+              const imageCount = getRecordImages(record).length;
+              return `
+                <div class="case-sku-row">
+                  <div>
+                    <strong>${escapeHtml(record.sku)}</strong>
+                    <small>${escapeHtml(record.subclase || "Sin subclase")} · Vista ${escapeHtml(record.vistaSeleccionada || DEFAULT_VIEW)}</small>
+                  </div>
+                  <div>
+                    ${statusPill(record.estado)}
+                    <small>${record.editor ? `Tomado por ${escapeHtml(record.editor)}` : "Sin tomar"}${record.trabajadoPor ? ` · Cargado por ${escapeHtml(record.trabajadoPor)}` : ""}</small>
+                    ${record.motivoRechazo ? `<small>Motivo: ${escapeHtml(record.motivoRechazo)}</small>` : ""}
+                  </div>
+                  <div>
+                    <strong>${escapeHtml(record.medidaOriginal || "Sin medida")}</strong>
+                    <small>${imageCount ? `${imageCount} imagen(es) cargada(s)` : "Sin imagen cargada"}</small>
+                  </div>
+                  <div class="case-sku-actions">
+                    ${canTake ? `<button class="btn btn-primary btn-small" onclick="takeRecord('${encodeForInline(record.id)}')">Tomar</button>` : ""}
+                    ${canUpload ? `
+                      <label class="btn btn-primary btn-small" for="workedInput-${escapeHtml(record.id)}">Subir imagen</label>
+                      <input id="workedInput-${escapeHtml(record.id)}" class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleWorkedUpload(event, '${encodeForInline(record.id)}')" />
+                    ` : ""}
+                    ${canUpload && isAdmin() ? `<button class="btn btn-soft btn-small" onclick="generateAiOptions('${encodeForInline(record.id)}')">Generar IA</button>` : ""}
+                    ${record.estado === STATUS.LISTO ? `<span class="pill status-generando">Carga lista</span>` : ""}
+                    ${record.estado === STATUS.APROBADO ? `<span class="pill status-aprobado">Aprobado</span>` : ""}
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+          <div class="case-download-lock">Mientras falte al menos un SKU, el caso seguirá visible aquí y ninguno pasará a revisión.</div>
         </div>
       `;
     }
@@ -2487,13 +2818,17 @@
 
     async function handleWorkedUpload(event, recordIdRaw) {
       if (!requireTabAccess("upload")) return;
-      const recordId = decodeURIComponent(recordIdRaw || selectedUploadId || "");
+      const recordId = decodeURIComponent(recordIdRaw || "");
       const record = getRecord(recordId);
       const files = [...(event.target.files || [])];
       event.target.value = "";
       if (!record || !files.length) return;
       if (uploadProcessing) {
         alert("Ya hay una subida en proceso.");
+        return;
+      }
+      if (!isAdmin() && record.editor !== currentUser()) {
+        alert("Este SKU está tomado por otro usuario.");
         return;
       }
 
@@ -2534,14 +2869,30 @@
           });
         }
 
-        record.estado = STATUS.REVISION;
+        record.estado = STATUS.LISTO;
+        record.trabajadoPor = currentUser();
         record.uploadedAt = now;
         record.updatedAt = now;
         record.motivoRechazo = "";
         await saveRecord(record);
-        activeTab = "review";
-        selectedReviewId = record.id;
-        toast("Imagen subida a revisión.");
+
+        const caseId = getCaseId(record);
+        const movedToReview = await advanceCaseToReviewIfComplete(caseId);
+        const progress = getCaseProgress(caseId);
+
+        if (movedToReview) {
+          if (roleCanAccessTab("review")) {
+            activeTab = "review";
+            selectedReviewId = getCaseRecords(caseId).find(item => item.estado === STATUS.REVISION)?.id || "";
+          } else {
+            activeTab = "work";
+          }
+          toast(`Caso completo: ${progress.total}/${progress.total} SKU enviados a revisión.`);
+        } else {
+          selectedUploadId = caseId;
+          toast(`SKU ${record.sku} cargado. Avance del caso: ${progress.completed}/${progress.total}.`);
+        }
+        refresh();
       } catch (error) {
         console.error(error);
         alert("No se pudo subir la imagen a Storage.");
@@ -2573,16 +2924,35 @@
         return;
       }
 
+      const caseId = getCaseId(record);
+      const progress = getCaseProgress(caseId);
       const images = getRecordImages(record);
       const measures = Array.isArray(record.medidas) ? record.medidas : [];
+      const canReviewSku = record.estado === STATUS.REVISION;
+      const canDownloadCase = progress.allApprovedForDownload;
 
       el.innerHTML = `
         <div class="detail-header">
           <div>
             <h2>${escapeHtml(record.sku)}</h2>
-            <small>${escapeHtml(record.subclase || "Sin subclase")} · Editor: ${escapeHtml(record.editor || "-")}</small>
+            <small>${escapeHtml(getCaseName(record))} · ${escapeHtml(record.subclase || "Sin subclase")} · Editor: ${escapeHtml(record.trabajadoPor || record.editor || "-")}</small>
           </div>
           ${statusPill(record.estado)}
+        </div>
+
+        <div class="section-block">
+          <div class="section-head">
+            <div><strong>Estado del caso</strong><br><small>La descarga se habilita solo con todos los SKU aprobados</small></div>
+            <button class="btn btn-primary" onclick="downloadApprovedCase('${encodeForInline(caseId)}')" ${canDownloadCase ? "" : "disabled"}>Descargar caso completo</button>
+          </div>
+          <div class="case-summary">
+            <div class="info-box"><small>Total</small><span>${progress.total}</span></div>
+            <div class="info-box"><small>Aprobados</small><span>${progress.approved}</span></div>
+            <div class="info-box"><small>En revisión</small><span>${progress.inReview}</span></div>
+            <div class="info-box"><small>Rechazados</small><span>${progress.rejected}</span></div>
+          </div>
+          ${renderCaseProgress(caseId, "approval")}
+          <div class="case-download-lock">${canDownloadCase ? "Todos los SKU están aprobados. La descarga del caso está disponible." : `Descarga bloqueada: faltan ${Math.max(0, progress.total - progress.approved)} SKU por aprobar.`}</div>
         </div>
 
         <div class="compare-grid">
@@ -2602,15 +2972,17 @@
               ${images.length ? `<div class="empty" style="padding:18px;">Cargando imagen...</div>` : `<div class="empty">Sin imagen para revisar.</div>`}
             </div>
 
-            <div class="reject-box">
-              <label>Motivo rechazo</label>
-              <textarea id="rejectReason-${escapeHtml(record.id)}" placeholder="Escribe el motivo si se rechaza"></textarea>
-            </div>
+            ${canReviewSku ? `
+              <div class="reject-box">
+                <label>Motivo rechazo</label>
+                <textarea id="rejectReason-${escapeHtml(record.id)}" placeholder="Escribe el motivo si se rechaza"></textarea>
+              </div>
 
-            <div class="actions" style="margin-top:12px;">
-              <button class="btn btn-primary" onclick="approveReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Aprobar y descargar</button>
-              <button class="btn btn-red" onclick="rejectReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Rechazar</button>
-            </div>
+              <div class="actions" style="margin-top:12px;">
+                <button class="btn btn-primary" onclick="approveReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Aprobar SKU</button>
+                <button class="btn btn-red" onclick="rejectReviewRecord('${encodeForInline(record.id)}')" ${images.length ? "" : "disabled"}>Rechazar</button>
+              </div>
+            ` : `<div class="section-block" style="margin-top:12px;"><strong>SKU aprobado</strong><div class="master-muted" style="margin-top:5px;">Permanece bloqueado para descarga hasta que se apruebe el caso completo.</div></div>`}
           </section>
         </div>
       `;
@@ -2657,7 +3029,7 @@
       if (reviewProcessing) return;
       const recordId = decodeURIComponent(recordIdRaw || selectedReviewId || "");
       const record = getRecord(recordId);
-      if (!record) return;
+      if (!record || record.estado !== STATUS.REVISION) return;
       const images = getRecordImages(record);
       const selectedIds = getSelectedReviewImageIds();
       const selected = images.filter((image, index) => selectedIds.includes(image.id || image.path || String(index)));
@@ -2666,51 +3038,38 @@
         return;
       }
 
-      const ok = confirm(`¿Aprobar y descargar ${selected.length} imagen(es) del SKU ${record.sku}?`);
+      const ok = confirm(`¿Aprobar ${selected.length} imagen(es) del SKU ${record.sku}?\n\nLa descarga seguirá bloqueada hasta aprobar todos los SKU del caso.`);
       if (!ok) return;
 
       reviewProcessing = true;
       try {
-        const zip = new JSZip();
-        const folder = zip.folder(safeFileName(record.sku));
-        let downloaded = 0;
-
-        for (let i = 0; i < selected.length; i++) {
-          const image = selected[i];
-          if (!image.path) continue;
-          const blob = await getBlob(storageRef(storage, image.path));
-          const ext = fileExtension(image.name || image.path) || "png";
-          folder.file(medidasOutputName(record, ext, i), blob);
-          downloaded++;
-        }
-
-        if (!downloaded) {
-          alert("No se pudo descargar ninguna imagen.");
-          return;
-        }
-
-        const zipBlob = await zip.generateAsync({ type: "blob" });
-        saveAs(zipBlob, `${safeFileName(record.sku)}_medidas_${dateStamp()}.zip`);
-
         const now = new Date().toISOString();
         const selectedKeys = new Set(selected.map((image, index) => image.id || image.path || String(index)));
-        const rejected = images.filter((image, index) => !selectedKeys.has(image.id || image.path || String(index)));
+        const discarded = images.filter((image, index) => !selectedKeys.has(image.id || image.path || String(index)));
+        archiveImagesToHistory(record, discarded, "discarded", { result: "discarded", reason: "Alternativa no seleccionada", reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
 
-        archiveImagesToHistory(record, selected, record.iaGenerated ? "approved_ia" : "approved", { result: "approved", reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
-        archiveImagesToHistory(record, rejected, "discarded", { result: "discarded", reason: "Alternativa no seleccionada", reviewedAt: now, archivedAt: now, archivedBy: currentUser() });
-
-        record.estado = STATUS.DESCARGADO;
+        record.generatedImages = selected.map(image => ({
+          ...image,
+          reviewStatus: "approved",
+          result: "approved",
+          reviewedAt: now,
+          reviewedBy: currentUser()
+        }));
+        record.estado = STATUS.APROBADO;
         record.revisor = currentUser();
         record.reviewedAt = now;
-        record.downloadedAt = now;
         record.updatedAt = now;
         record.motivoRechazo = "";
-        record.generatedImages = [];
         await saveRecord(record);
-        toast("Imagen aprobada y descargada.");
+
+        const progress = getCaseProgress(getCaseId(record));
+        toast(progress.allApprovedForDownload
+          ? "Caso completamente aprobado. Descarga habilitada."
+          : `SKU aprobado. Caso: ${progress.approved}/${progress.total} aprobados.`);
+        refresh();
       } catch (error) {
         console.error(error);
-        alert("No se pudo aprobar/descargar. Revisa Storage.");
+        alert("No se pudo aprobar el SKU.");
       } finally {
         reviewProcessing = false;
       }
@@ -2746,6 +3105,72 @@
       } catch (error) {
         console.error(error);
         alert("No se pudo rechazar.");
+      } finally {
+        reviewProcessing = false;
+      }
+    }
+
+    async function downloadApprovedCase(caseIdRaw) {
+      if (!requireTabAccess("review")) return;
+      if (reviewProcessing) return;
+      const caseId = decodeURIComponent(caseIdRaw || "");
+      const caseRecords = getCaseRecords(caseId);
+      if (!caseRecords.length) return;
+      const progress = getCaseProgress(caseId);
+      if (!progress.allApprovedForDownload) {
+        alert(`La descarga está bloqueada. Solo hay ${progress.approved} de ${progress.total} SKU aprobados.`);
+        return;
+      }
+
+      const caseName = getCaseName(caseRecords[0]);
+      const ok = confirm(`¿Descargar el caso completo ${caseName} con ${caseRecords.length} SKU?`);
+      if (!ok) return;
+
+      reviewProcessing = true;
+      try {
+        const zip = new JSZip();
+        const root = zip.folder(safeFileName(caseName));
+        let totalImages = 0;
+
+        for (const record of caseRecords) {
+          const images = getRecordImages(record).filter(image => image.path);
+          if (!images.length) throw new Error(`El SKU ${record.sku} no tiene imágenes aprobadas disponibles.`);
+          const folder = root.folder(safeFileName(record.sku));
+          for (let i = 0; i < images.length; i++) {
+            const image = images[i];
+            const blob = await getBlob(storageRef(storage, image.path));
+            const ext = fileExtension(image.name || image.path) || "png";
+            folder.file(medidasOutputName(record, ext, i), blob);
+            totalImages++;
+          }
+        }
+
+        if (!totalImages) throw new Error("No se encontró ninguna imagen aprobada para descargar.");
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, `${safeFileName(caseName)}_${dateStamp()}.zip`);
+
+        const now = new Date().toISOString();
+        for (const record of caseRecords) {
+          archiveActiveImagesToHistory(record, record.iaGenerated ? "approved_ia" : "approved", {
+            result: "approved",
+            reviewedAt: record.reviewedAt || now,
+            archivedAt: now,
+            archivedBy: currentUser()
+          });
+          record.estado = STATUS.DESCARGADO;
+          record.downloadedAt = now;
+          record.updatedAt = now;
+          record.downloadedBy = currentUser();
+          record.generatedImages = [];
+          await saveRecord(record);
+        }
+
+        selectedReviewId = "";
+        toast(`Caso descargado: ${caseRecords.length} SKU y ${totalImages} imagen(es).`);
+        refresh();
+      } catch (error) {
+        console.error(error);
+        alert(error.message || "No se pudo descargar el caso completo.");
       } finally {
         reviewProcessing = false;
       }
@@ -2789,7 +3214,7 @@
       return all.filter((image, index) => {
         const result = normalizeText(image.result || image.reviewStatus || "");
         const approved = result.includes("approved") || result.includes("aprob");
-        if (!approved && record.estado !== STATUS.DESCARGADO) return false;
+        if (!approved) return false;
         const key = image.path || image.id || String(index);
         if (seen.has(key)) return false;
         seen.add(key);
@@ -2821,6 +3246,7 @@
         <table class="master-table">
           <thead>
             <tr>
+              <th>Caso</th>
               <th>SKU</th>
               <th>Medidas</th>
               <th>Subclase</th>
@@ -2834,6 +3260,7 @@
           <tbody>
             ${list.map(record => `
               <tr>
+                <td><div class="master-sku">${escapeHtml(getCaseName(record))}</div><div class="master-muted">${escapeHtml(getCaseId(record))}</div></td>
                 <td><div class="master-sku">${escapeHtml(record.sku)}</div>${statusPill(record.estado)}</td>
                 <td>${renderMasterMeasures(record)}</td>
                 <td>${escapeHtml(record.subclase || "-")}</td>
@@ -2943,13 +3370,16 @@
     function exportMasterExcel() {
       if (!requireTabAccess("master")) return;
       const rows = getMasterRecords().map(record => ({
+        CASO: getCaseName(record),
+        CASE_ID: getCaseId(record),
         SKU: record.sku,
         MEDIDA_ORIGINAL: record.medidaOriginal || "",
         MEDIDAS_IA: (record.medidas || []).map(item => `${item.label}: ${item.value}`).join(" | "),
         SUBCLASE: record.subclase || "",
         VISTA: record.vistaSeleccionada || "",
         ESTADO: record.estado || "",
-        EDITOR: record.editor || "",
+        USUARIOS_ASIGNADOS: getCaseAssignedUsers(getCaseId(record)).join(", "),
+        EDITOR: record.trabajadoPor || record.editor || "",
         REVISOR: record.revisor || "",
         FECHA_DESCARGA: record.downloadedAt || ""
       }));
@@ -2964,6 +3394,10 @@
       const recordId = decodeURIComponent(recordIdRaw || "");
       const record = getRecord(recordId);
       if (!record) return;
+      if (record.estado !== STATUS.DESCARGADO) {
+        alert("La descarga individual solo está disponible después de descargar el caso completo.");
+        return;
+      }
       const images = getMasterDownloadImages(record);
       if (!images.length) {
         alert("Este SKU no tiene imágenes aprobadas disponibles.");
@@ -3073,7 +3507,8 @@
 
     async function generateAiOptions(recordIdRaw) {
       if (!requireAdmin()) return;
-      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || selectedUploadId || "");
+      const uploadFallback = getCaseRecords(selectedUploadId).find(item => canGenerateAiForRecord(item));
+      const recordId = decodeURIComponent(recordIdRaw || selectedWorkId || uploadFallback?.id || "");
       const record = getRecord(recordId);
       if (!record) return;
       if (!canGenerateAiForRecord(record)) {
@@ -3296,14 +3731,16 @@ Resultado final:
         generatedByAi: true,
         reviewStatus: "pending"
       }];
-      current.estado = STATUS.REVISION;
+      current.estado = STATUS.LISTO;
       current.editor = IA_SYSTEM_USER;
+      current.trabajadoPor = IA_SYSTEM_USER;
       current.iaGenerated = true;
       current.iaFinishedAt = now;
       current.iaError = "";
       current.uploadedAt = now;
       current.updatedAt = now;
       await saveRecord(current);
+      await advanceCaseToReviewIfComplete(getCaseId(current));
     }
 
     function openAiProgressModal() {
